@@ -44,20 +44,19 @@ def uid():
 def wire(x1, y1, x2, y2):
     return (f'  (wire (pts (xy {x1} {y1}) (xy {x2} {y2}))\n'
             f'    (stroke (width 0) (type solid))\n'
-            f'    (uuid "{uid()}"))')
+            f'    (uuid {uid()})\n'
+            f'  )')
 
 def net_label(name, x, y, angle=0):
-    return (f'  (label "{name}" (at {x} {y} {angle})\n'
-            f'    (fields_autoplaced)\n'
+    return (f'  (label "{name}" (at {x} {y} {angle}) (fields_autoplaced)\n'
             f'    (effects (font (size 1.27 1.27)) (justify left bottom))\n'
-            f'    (uuid "{uid()}")\n'
-            f'    (property "InterSheetRef" "" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide)))')
+            f'    (uuid {uid()})\n'
+            f'  )')
 
 def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
     return (f'  (symbol (lib_id "power:{lib_name}") (at {x} {y} {angle}) (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid "{uid()}")\n'
+            f'    (uuid {uid()})\n'
             f'    (property "Reference" "#PWR{ref_suffix}" (at {x} {y+2.54} 0)\n'
             f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Value" "{value}" (at {x} {y-2.54} 0)\n'
@@ -66,7 +65,7 @@ def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
 def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
     return (f'  (symbol (lib_id "Device:R") (at {x} {y} {angle}) (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid "{uid()}")\n'
+            f'    (uuid {uid()})\n'
             f'    (property "Reference" "{ref}" (at {x+1.016} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Value" "{value}" (at {x-1.016} {y-1.27} 0)\n'
@@ -79,7 +78,7 @@ def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
 def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
     return (f'  (symbol (lib_id "Device:C") (at {x} {y} {angle}) (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid "{uid()}")\n'
+            f'    (uuid {uid()})\n'
             f'    (property "Reference" "{ref}" (at {x+1.524} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Value" "{value}" (at {x-1.524} {y-1.27} 0)\n'
@@ -92,7 +91,7 @@ def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
 def diode(ref, value, x, y, angle=0, fp="Diode_SMD:D_SOD-323"):
     return (f'  (symbol (lib_id "Device:D_Schottky") (at {x} {y} {angle}) (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid "{uid()}")\n'
+            f'    (uuid {uid()})\n'
             f'    (property "Reference" "{ref}" (at {x} {y-2.54} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Value" "{value}" (at {x} {y+2.54} 0)\n'
@@ -108,7 +107,7 @@ def opamp_unit(ref, unit_int, x, y, value="TL072"):
     return (f'  (symbol (lib_id "Amplifier_Operational:TL072")'
             f' (at {x} {y} 0) (unit {unit_int})\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid "{uid()}")\n'
+            f'    (uuid {uid()})\n'
             f'    (property "Reference" "{ref}" (at {x+5.08} {y-5.08} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Value" "{value}" (at {x+5.08} {y-6.35} 0)\n'
@@ -468,7 +467,7 @@ def main():
         f'(kicad_sch',
         f'  (version 20230121)',
         f'  (generator "chaos_sch_gen_v2")',
-        f'  (uuid "{uid()}")',
+        f'  (uuid {uid()})',
         f'  (paper "A2")',
         TITLE_BLOCK,
         LIB_SYMBOLS,
