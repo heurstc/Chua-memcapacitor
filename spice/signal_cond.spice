@@ -1,0 +1,176 @@
+* ============================================================
+* 5D Chaos Monitor — Signal Conditioning Front-End
+* ngspice batch netlist
+*
+* Signal path (one channel, replicated ×5)  — Rev 2: 3 op-amps/ch:
+*
+*  Chua(±8V)──[RIN 1k]──[BAT54 ±9V clamp]──[TL072-A input buffer]
+*             ──[RDIVH 30k / RDIVL 10k ÷4]
+*             ──[TL072-B divider buffer]  ← NEW: eliminates 7.5kΩ source loading
+*             ──[Sallen-Key Butterworth LPF, fn=4.95kHz (restored to ideal)]
+*             ──[BAT54 ±2.5V clamp]──► ADS1262
+*
+* Run:   ngspice -b signal_cond.spice
+* Output files: ac_bode.dat  tran_1k.dat  tran_8k.dat  tran_step.dat
+* ============================================================
+
+.TITLE Chaos Monitor Signal Conditioning
+
+* ── Power Rails ───────────────────────────────────────────────
+VP9   VP9  0   DC  9
+VN9   VN9  0   DC -9
+VP25  VP25 0   DC  2.5
+VN25  VN25 0   DC -2.5
+
+* ── Input stimulus (value overridden in .control) ─────────────
+* AC  : unity magnitude (1 V) for Bode plot
+* TRAN: 8 V pk @ 1 kHz — representative Chua double-scroll level
+VIN   NIN  0   DC 0  AC 1  SIN(0 8 1k 0 0 0)
+
+* ── Input series protection ───────────────────────────────────
+RIN   NIN  N1  1k
+
+* ── Input clamp diodes to ±9 V ────────────────────────────────
+D1    N1   VP9  BAT54   ; conducts if N1 > +9 V
+D2    VN9  N1   BAT54   ; conducts if N1 < -9 V
+
+* ── TL072-A: unity-gain input buffer ─────────────────────────
+* Subckt pin order: INP INN OUT VP VN
+* INN tied to OUT → unity gain  (virtual short: INN = INP)
+XU1A  N1  NBUF  NBUF  VP9  VN9  TL072
+
+* ── Voltage attenuator ÷4  (30 kΩ / 10 kΩ) ──────────────────
+* Thevenin: Vth = 0.25·Vin, Rth = 30k||10k = 7.5 kΩ
+RDIVH  NBUF  NDIV  30k
+RDIVL  NDIV  0     10k
+
+* ── TL072-B: divider unity-gain buffer (Rev 2 addition) ──────
+*
+*  Purpose: eliminates the 7.5 kΩ Thevenin source impedance at NDIV
+*  that was loading RSK1 and shifting fn from 4.95 kHz → 3.74 kHz.
+*  With this buffer: Rsource = 0 Ω → R1_eff = RSK1 = 10 kΩ → fn = 4.95 kHz.
+*
+*  INN tied to NBUF2 (output) → unity gain
+XU1B  NDIV  NBUF2  NBUF2  VP9  VN9  TL072
+
+* ── Sallen-Key 2nd-order Butterworth LPF ─────────────────────
+*
+*  Topology (unity gain, R1=R2=R, C1<C2 → Butterworth):
+*
+*          RSK1           RSK2
+*  NBUF2──[10k]──NA──[10k]──NSKPLUS──(+)TL072-C──NSKOUT
+*                 |                                   |
+*                [CFB 2.2n] ── feedback to NSKOUT ───┘
+*                                                    |
+*               NSKPLUS──[CSH 4.7n]──GND         (–)TL072-C tied to NSKOUT
+*
+*  Design equations (Rev 2 — source impedance = 0 Ω from buffer):
+*    R1_eff  = RSK1 = 10.0 kΩ    (no loading — buffer drives from 0 Ω)
+*    R2      = RSK2 = 10.0 kΩ
+*    C_fb    = CFB  = 2.2 nF     (feedback / node-A to output)
+*    C_sh    = CSH  = 4.7 nF     (shunt / +in to GND)
+*    ωn  = 1/√(R1·R2·C_fb·C_sh) = 31 085 rad/s  → fn = 4.95 kHz ✓ (ideal)
+*    Q   = √(C_sh/C_fb)/2        = √(4.7/2.2)/2 = 0.731 ≈ 0.707 ✓ (Butterworth)
+
+RSK1  NBUF2   NA       10k
+RSK2  NA      NSKPLUS  10k
+CFB   NA      NSKOUT   2.2n    ; feedback cap — node A to SK output
+CSH   NSKPLUS 0        4.7n    ; shunt cap — (+)in to GND
+
+* ── TL072-C: Sallen-Key active element (unity-gain buffer) ───
+XU1C  NSKPLUS  NSKOUT  NSKOUT  VP9  VN9  TL072
+
+* ── Output clamp to ADS1262 supply rails (±2.5 V) ────────────
+D3    NSKOUT  VP25  BAT54
+D4    VN25    NSKOUT  BAT54
+
+* ──────────────────────────────────────────────────────────────
+* MODELS
+* ──────────────────────────────────────────────────────────────
+
+* BAT54 Schottky — SPICE parameters from Vishay datasheet
+.MODEL BAT54 D (
++  IS=2.52n  RS=0.898  N=1.27  EG=0.69  XTI=2
++  BV=30     IBV=0.1m
++  CJO=8p    VJ=0.55   M=0.48  FC=0.5 )
+
+* ── TL072 simplified behavioral model ────────────────────────
+* Pin order: INP  INN  OUT  VP  VN
+*
+* Key specs replicated:
+*   DC open-loop gain   Av0 = 200 000 (106 dB)
+*   Unity-gain bandwidth GBW = 3 MHz
+*   Dominant pole           fp = GBW / Av0 = 15 Hz
+*   Output resistance      Rout = 75 Ω
+*
+* Derivation of gm / Rp / Cp:
+*   gm   = 100 µA/V  (transconductance)
+*   Rp   = Av0 / gm  = 200 000 / 100µ = 2 GΩ
+*   Cp   = 1/(2π·Rp·fp) = 1/(2π·2G·15) = 5.3 pF
+*   Check: GBW = gm/(2π·Cp) = 100µ/(2π·5.3p) = 3.0 MHz ✓
+
+.SUBCKT TL072 INP INN OUT VP VN
+
+RINP  INP  INN  1T          ; differential input resistance
+
+GM1   VN   VINT  INP  INN  100U   ; gm stage; VINT referenced to VN
+
+RP1   VINT  VN  2G           ; dominant pole load (2 GΩ)
+CP1   VINT  VN  5.3P         ; dominant pole cap  (5.3 pF)
+
+EOUT  ENODE  VN  VINT  VN  1 ; unity-gain output buffer
+ROUT  ENODE  OUT  75          ; output resistance
+
+.ENDS TL072
+
+* ──────────────────────────────────────────────────────────────
+* CONTROL BLOCK — batch execution
+* ──────────────────────────────────────────────────────────────
+.control
+
+  set wr_singlescale
+  set wr_vecnames
+
+  * ── 1. AC frequency sweep ─────────────────────────────────
+  ac dec 200 1 500k
+
+  echo ""
+  echo "=== AC Measurements ==="
+  meas ac dc_gain_v       FIND   V(NSKOUT)                   AT=1
+  meas ac ndiv_dc_v       FIND   V(NDIV)                     AT=1
+  meas ac fc_filter_hz    WHEN   VDB(NSKOUT)=VDB(NDIV)-3     CROSS=1
+  meas ac fc_total_hz     WHEN   VDB(NSKOUT)=VDB(NSKOUT,f=1)-3  CROSS=1
+  meas ac atten_5k_db     FIND   VDB(NSKOUT)-VDB(NIN)        AT=5000
+  meas ac atten_6k_db     FIND   VDB(NSKOUT)-VDB(NIN)        AT=6000
+  meas ac atten_10k_db    FIND   VDB(NSKOUT)-VDB(NIN)        AT=10000
+  meas ac atten_20k_db    FIND   VDB(NSKOUT)-VDB(NIN)        AT=20000
+  echo ""
+
+  * Write: freq  Re(NIN)  Im(NIN)  Re(NDIV)  Im(NDIV)  Re(NA)  Im(NA)  Re(NSKPLUS)  Im(NSKPLUS)  Re(NSKOUT)  Im(NSKOUT)
+  wrdata ac_bode.dat V(NIN) V(NDIV) V(NA) V(NSKPLUS) V(NSKOUT)
+
+  * ── 2. Transient — 1 kHz tone (in-band) ──────────────────
+  * VIN is already set to SIN(0 8 1k); just run tran
+  tran 0.5u 3m
+  wrdata tran_1k.dat V(NIN) V(NDIV) V(NSKOUT)
+
+  * ── 3. Transient — 8 kHz tone (above cutoff) ─────────────
+  alter @VIN[sin] = [ 0, 8, 8000, 0, 0, 0 ]
+  tran 0.5u 1m
+  wrdata tran_8k.dat V(NIN) V(NSKOUT)
+
+  * ── 4. Transient — step response ─────────────────────────
+  * PULSE: V1 V2 Td Tr Tf Pw Per
+  alter @VIN[pulse] = [ 0, 4, 100u, 1n, 1n, 5m, 10m ]
+  tran 0.5u 1m
+  wrdata tran_step.dat V(NIN) V(NSKOUT)
+
+  * ── 5. Transient — Chua-like multi-tone (1k + 3k + 8k) ──
+  * ngspice does not support direct superposition of SIN sources
+  * in alter; generate in Python instead (see plot_response.py).
+
+  quit
+
+.endc
+
+.END
