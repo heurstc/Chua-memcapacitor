@@ -55,7 +55,7 @@ def net_label(name, x, y, angle=0):
 
 def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
     return (f'  (symbol (lib_id "power:{lib_name}") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+            f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "#PWR{ref_suffix}" (at {x} {y+2.54} 0)\n'
             f'      (effects (font (size 1.27 1.27)) hide))\n'
@@ -64,7 +64,7 @@ def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
 
 def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
     return (f'  (symbol (lib_id "Device:R") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+            f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "{ref}" (at {x+1.016} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
@@ -77,7 +77,7 @@ def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
 
 def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
     return (f'  (symbol (lib_id "Device:C") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+            f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "{ref}" (at {x+1.524} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
@@ -90,7 +90,7 @@ def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
 
 def diode(ref, value, x, y, angle=0, fp="Diode_SMD:D_SOD-323"):
     return (f'  (symbol (lib_id "Device:D_Schottky") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+            f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "{ref}" (at {x} {y-2.54} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
@@ -106,7 +106,7 @@ def opamp_unit(ref, unit_int, x, y, value="TL072"):
     unit_int=1 → unit A (pins 3,2,1),  unit_int=2 → unit B (pins 5,6,7)."""
     return (f'  (symbol (lib_id "Amplifier_Operational:TL072")'
             f' (at {x} {y} 0) (unit {unit_int})\n'
-            f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
+            f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "{ref}" (at {x+5.08} {y-5.08} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
