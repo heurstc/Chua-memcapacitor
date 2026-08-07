@@ -323,7 +323,7 @@ def build_channel(ch, y0, ro, oi):
 LIB_SYMBOLS = '''\
   (lib_symbols
     (symbol "Device:R"
-      (pin_numbers (hide yes)) (pin_names (offset 0))
+      (pin_numbers hide) (pin_names (offset 0))
       (exclude_from_sim no) (in_bom yes) (on_board yes)
       (property "Reference" "R" (at 1.016 0 90) (effects (font (size 1.27 1.27))))
       (property "Value" "R" (at -1.016 0 90) (effects (font (size 1.27 1.27))))
