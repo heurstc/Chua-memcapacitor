@@ -51,14 +51,14 @@ def net_label(name, x, y, angle=0):
             f'    (effects (font (size 1.27 1.27)) (justify left bottom))\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "InterSheetRef" "" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes))))')
+            f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
     return (f'  (symbol (lib_id "power:{lib_name}") (at {x} {y} {angle}) (unit 1)\n'
             f'    (exclude_from_sim no) (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "Reference" "#PWR{ref_suffix}" (at {x} {y+2.54} 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes)))\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Value" "{value}" (at {x} {y-2.54} 0)\n'
             f'      (effects (font (size 1.27 1.27)))))')
 
@@ -71,9 +71,9 @@ def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
             f'    (property "Value" "{value}" (at {x-1.016} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes)))\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes))))')
+            f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
     return (f'  (symbol (lib_id "Device:C") (at {x} {y} {angle}) (unit 1)\n'
@@ -84,9 +84,9 @@ def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
             f'    (property "Value" "{value}" (at {x-1.524} {y-1.27} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes)))\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes))))')
+            f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def diode(ref, value, x, y, angle=0, fp="Diode_SMD:D_SOD-323"):
     return (f'  (symbol (lib_id "Device:D_Schottky") (at {x} {y} {angle}) (unit 1)\n'
@@ -97,9 +97,9 @@ def diode(ref, value, x, y, angle=0, fp="Diode_SMD:D_SOD-323"):
             f'    (property "Value" "{value}" (at {x} {y+2.54} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes)))\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes))))')
+            f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def opamp_unit(ref, unit_int, x, y, value="TL072"):
     """Place one unit of a TL072 dual op-amp.
@@ -113,10 +113,10 @@ def opamp_unit(ref, unit_int, x, y, value="TL072"):
             f'    (property "Value" "{value}" (at {x+5.08} {y-6.35} 0)\n'
             f'      (effects (font (size 1.016 1.016))))\n'
             f'    (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes)))\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
             f'    (property "Datasheet"'
             f' "https://www.ti.com/lit/ds/symlink/tl072.pdf" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) (hide yes))))')
+            f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def text(s, x, y, size=1.27, bold=False):
     b = "yes" if bold else "no"
@@ -327,8 +327,8 @@ LIB_SYMBOLS = '''\
       (in_bom yes) (on_board yes)
       (property "Reference" "R" (at 1.016 0 90) (effects (font (size 1.27 1.27))))
       (property "Value" "R" (at -1.016 0 90) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "R_0_1"
         (rectangle (start -1.016 -0.508) (end 1.016 0.508)
           (stroke (width 0.2032) (type default)) (fill (type none))))
@@ -342,8 +342,8 @@ LIB_SYMBOLS = '''\
       (in_bom yes) (on_board yes)
       (property "Reference" "C" (at 1.016 -0.254 0) (effects (font (size 1.27 1.27)) (justify left)))
       (property "Value" "C" (at 1.016 0.508 0) (effects (font (size 1.27 1.27)) (justify left)))
-      (property "Footprint" "" (at 0.508 -3.81 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0.508 -3.81 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "C_0_1"
         (polyline (pts (xy -2.032 -0.508) (xy 2.032 -0.508))
           (stroke (width 0.508) (type default)) (fill (type none)))
@@ -359,8 +359,8 @@ LIB_SYMBOLS = '''\
       (in_bom yes) (on_board yes)
       (property "Reference" "D" (at 0 2.54 0) (effects (font (size 1.27 1.27))))
       (property "Value" "D_Schottky" (at 0 -2.54 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "D_Schottky_0_1"
         (polyline (pts (xy -1.016 -1.016) (xy -1.016 1.016))
           (stroke (width 0.254) (type default)) (fill (type none)))
@@ -382,9 +382,9 @@ LIB_SYMBOLS = '''\
       (in_bom yes) (on_board yes)
       (property "Reference" "U" (at 5.08 5.08 0) (effects (font (size 1.27 1.27))))
       (property "Value" "TL072" (at 5.08 3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (property "Datasheet" "https://www.ti.com/lit/ds/symlink/tl072.pdf" (at 0 0 0)
-        (effects (font (size 1.27 1.27)) (hide yes)))
+        (effects (font (size 1.27 1.27)) hide))
       (symbol "TL072_1_1"
         (polyline (pts (xy -5.08 -5.08) (xy -5.08 5.08) (xy 5.08 0) (xy -5.08 -5.08))
           (stroke (width 0.254) (type default)) (fill (type none)))
@@ -409,10 +409,10 @@ LIB_SYMBOLS = '''\
         (pin power_in line (at 0 -7.62 90) (length 2.54)
           (name "V-" (effects (font (size 1.27 1.27)))) (number "4" (effects (font (size 1.27 1.27)))))))
     (symbol "power:GND"
-      (property "Reference" "#PWR" (at 0 -6.35 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Reference" "#PWR" (at 0 -6.35 0) (effects (font (size 1.27 1.27)) hide))
       (property "Value" "GND" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "GND_0_1"
         (polyline (pts (xy 0 0) (xy 0 -1.27))
           (stroke (width 0) (type default)) (fill (type none)))
@@ -422,10 +422,10 @@ LIB_SYMBOLS = '''\
         (pin power_in line (at 0 0 270) (length 0)
           (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))))
     (symbol "power:VCC"
-      (property "Reference" "#PWR" (at 0 -3.81 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Reference" "#PWR" (at 0 -3.81 0) (effects (font (size 1.27 1.27)) hide))
       (property "Value" "VCC" (at 0 3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "VCC_0_1"
         (polyline (pts (xy -1.016 -0.508) (xy 0 1.016) (xy 1.016 -0.508))
           (stroke (width 0) (type default)) (fill (type none)))
@@ -435,10 +435,10 @@ LIB_SYMBOLS = '''\
         (pin power_in line (at 0 -2.54 90) (length 0)
           (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))))
     (symbol "power:VEE"
-      (property "Reference" "#PWR" (at 0 3.556 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Reference" "#PWR" (at 0 3.556 0) (effects (font (size 1.27 1.27)) hide))
       (property "Value" "VEE" (at 0 -3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
+      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
+      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
       (symbol "VEE_0_1"
         (polyline (pts (xy -1.016 0.508) (xy 0 -1.016) (xy 1.016 0.508))
           (stroke (width 0) (type default)) (fill (type none)))
