@@ -1,506 +1,482 @@
 #!/usr/bin/env python3
 """
-Generate signal_conditioning.kicad_sch  (KiCad 7 format)
+Generate signal_conditioning.kicad_sch  (KiCad 7)  — Rev 3
+
+All symbols extracted from the installed KiCad 7 global library so pin
+positions are exact and every wire endpoint lands on the 1.27 mm snap grid.
+
+Actual library pin offsets used (verified from /usr/share/kicad/symbols/):
+  Device:R        angle=90  (horizontal)  pins at cx ± 3.81
+  Device:C        angle=0   (vertical)    pin1 (top) cy−3.81 / pin2 (bot) cy+3.81
+  Device:D_Schottky angle=270             A at (cx, cy+3.81) / K at (cx, cy−3.81)
+  TL072 (LM2904)  angle=0                 +in (cx−7.62, cy−2.54)
+                                           −in (cx−7.62, cy+2.54)
+                                           out (cx+7.62, cy)
 
 Signal path per channel (×5):
-  Chua output
-    → R_IN 1kΩ          (current-limit / ESD)
-    → BAT54 ±9V clamps
-    → TL072-A            (unity-gain input buffer)
-    → R_DIV_HI 30kΩ / R_DIV_LO 10kΩ   (÷4 attenuator → ±2V max)
-    → TL072-B            (unity-gain divider buffer — ELIMINATES source loading
-                          on SK filter, restoring fn to ideal 4.95 kHz)
-    → 2nd-order Sallen-Key Butterworth LPF @ 4.95 kHz
-        R_SK1 = R_SK2 = 10kΩ
-        C_FB  = 2.2 nF  (node-A to output, feedback cap)
-        C_SH  = 4.7 nF  (non-inv input to GND, shunt cap)
-        Q = √(4.7/2.2)/2 ≈ 0.73 ≈ 0.707  (Butterworth) ✓
-        fn = 1/(2π·10k·√(2.2n·4.7n)) ≈ 4.95 kHz ✓
-        (source loading → Rth = 0 with TL072-B buffer: fn is ideal) ✓
-    → TL072-C            (SK active element / unity-gain output buffer)
-    → BAT54 ±2.5V clamps (ADS1262 AVDD/AVSS protection)
-    → ADS_CHn label → ADS1262
+  CHUA → [R_IN 1k] → ±9V clamp → TL072-A buf → ÷4 attenuator → TL072-B buf
+       → [R_SK1 10k] → Node-A → [R_SK2 10k] → SK+in → TL072-C (SK active)
+       → ±2.5V clamp → ADS_CHn
 
-IC count: 3 op-amps per channel × 5 channels = 15 units
-          TL072 is dual → 8 ICs total (U1–U8), U8B spare.
-          Upgrade to TL074 (quad) to reduce to 4 ICs.
-
-Run:   python3 gen_schematic.py
-Output: signal_conditioning.kicad_sch  (open directly in KiCad 7)
+Run: python3 gen_schematic.py
 """
 
-import uuid
+import uuid, re
 
-GRID      = 1.27    # mm, standard KiCad schematic grid
-CH_STRIDE = 60.0    # mm vertical spacing between channels (extra room for 3 op-amps)
-X0        = 10.0    # mm left margin
+# ── Library extraction ─────────────────────────────────────────────────────────
 
-def uid():
-    return str(uuid.uuid4())
+KICAD_SYM = {
+    "Device":               "/usr/share/kicad/symbols/Device.kicad_sym",
+    "Amplifier_Operational":"/usr/share/kicad/symbols/Amplifier_Operational.kicad_sym",
+    "power":                "/usr/share/kicad/symbols/power.kicad_sym",
+}
+
+def _extract(path, name):
+    text = open(path).read()
+    idx = text.find(f'(symbol "{name}"')
+    if idx < 0:
+        raise ValueError(f"{name} not found in {path}")
+    depth, end = 0, idx
+    for j, ch in enumerate(text[idx:]):
+        if ch == '(': depth += 1
+        elif ch == ')':
+            depth -= 1
+            if depth == 0: end = idx+j+1; break
+    return text[idx:end]
+
+def lib_sym(lib, name, override_name=None):
+    """Return symbol S-expr, optionally renaming it."""
+    s = _extract(KICAD_SYM[lib], name)
+    if override_name:
+        s = s.replace(f'(symbol "{name}"', f'(symbol "{override_name}"', 1)
+        # Update Value property
+        s = re.sub(r'(\(property "Value" ")[^"]*(")', rf'\g<1>{override_name.split(":")[-1]}\2', s, count=1)
+    return s
 
 
 # ── S-expression primitives ────────────────────────────────────────────────────
 
+def uid():
+    return str(uuid.uuid4())
+
 def wire(x1, y1, x2, y2):
-    return (f'  (wire (pts (xy {x1} {y1}) (xy {x2} {y2}))\n'
+    if abs(x1-x2) < 1e-6 and abs(y1-y2) < 1e-6:
+        return ""   # zero-length wire — skip
+    return (f'  (wire (pts (xy {x1:.4f} {y1:.4f}) (xy {x2:.4f} {y2:.4f}))\n'
             f'    (stroke (width 0) (type solid))\n'
             f'    (uuid {uid()})\n'
             f'  )')
 
+def junction(x, y):
+    return (f'  (junction (at {x:.4f} {y:.4f}) (diameter 0) (color 0 0 0 0)\n'
+            f'    (uuid {uid()})\n'
+            f'  )')
+
 def net_label(name, x, y, angle=0):
-    return (f'  (label "{name}" (at {x} {y} {angle}) (fields_autoplaced)\n'
+    return (f'  (label "{name}" (at {x:.4f} {y:.4f} {angle}) (fields_autoplaced)\n'
             f'    (effects (font (size 1.27 1.27)) (justify left bottom))\n'
             f'    (uuid {uid()})\n'
             f'  )')
 
-def power_sym(lib_name, value, x, y, angle=0, ref_suffix="01"):
-    return (f'  (symbol (lib_id "power:{lib_name}") (at {x} {y} {angle}) (unit 1)\n'
+def no_connect(x, y):
+    return (f'  (no_connect (at {x:.4f} {y:.4f})\n'
+            f'    (uuid {uid()})\n'
+            f'  )')
+
+def sym_inst(lib_id, x, y, angle, unit, ref, val, fp="", datasheet="", extra_props=""):
+    props = (f'    (property "Reference" "{ref}" (at {x+1:.2f} {y-1:.2f} 0)\n'
+             f'      (effects (font (size 1.016 1.016))))\n'
+             f'    (property "Value" "{val}" (at {x-1:.2f} {y-1:.2f} 0)\n'
+             f'      (effects (font (size 1.016 1.016))))\n'
+             f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
+             f'      (effects (font (size 1.27 1.27)) hide))\n'
+             f'    (property "Datasheet" "{datasheet}" (at 0 0 0)\n'
+             f'      (effects (font (size 1.27 1.27)) hide))')
+    return (f'  (symbol (lib_id "{lib_id}") (at {x:.4f} {y:.4f} {angle}) (unit {unit})\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid {uid()})\n'
-            f'    (property "Reference" "#PWR{ref_suffix}" (at {x} {y+2.54} 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide))\n'
-            f'    (property "Value" "{value}" (at {x} {y-2.54} 0)\n'
-            f'      (effects (font (size 1.27 1.27)))))')
+            f'{props}{extra_props}\n'
+            f'  )')
 
-def resistor(ref, value, x, y, angle=0, fp="Resistor_SMD:R_0402_1005Metric"):
-    return (f'  (symbol (lib_id "Device:R") (at {x} {y} {angle}) (unit 1)\n'
+def power_sym(name, x, y, angle=0, pwr_ref=None):
+    ref = pwr_ref or f"#PWR_{uid()[:4]}"
+    return (f'  (symbol (lib_id "power:{name}") (at {x:.4f} {y:.4f} {angle}) (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid {uid()})\n'
-            f'    (property "Reference" "{ref}" (at {x+1.016} {y-1.27} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Value" "{value}" (at {x-1.016} {y-1.27} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
+            f'    (property "Reference" "{ref}" (at {x:.2f} {y+2:.2f} 0)\n'
             f'      (effects (font (size 1.27 1.27)) hide))\n'
-            f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide)))')
+            f'    (property "Value" "{name}" (at {x:.2f} {y-2:.2f} 0)\n'
+            f'      (effects (font (size 1.27 1.27))))\n'
+            f'    (property "Footprint" "" (at 0 0 0)\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
+            f'    (property "Datasheet" "" (at 0 0 0)\n'
+            f'      (effects (font (size 1.27 1.27)) hide))\n'
+            f'  )')
 
-def capacitor(ref, value, x, y, angle=0, fp="Capacitor_SMD:C_0402_1005Metric"):
-    return (f'  (symbol (lib_id "Device:C") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (in_bom yes) (on_board yes) (dnp no)\n'
+def text_note(s, x, y, size=1.27, bold=False):
+    bt = " bold" if bold else ""
+    return (f'  (text "{s}" (at {x:.4f} {y:.4f} 0)\n'
+            f'    (effects (font (size {size} {size}){bt}))\n'
             f'    (uuid {uid()})\n'
-            f'    (property "Reference" "{ref}" (at {x+1.524} {y-1.27} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Value" "{value}" (at {x-1.524} {y-1.27} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide))\n'
-            f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide)))')
+            f'  )')
 
-def diode(ref, value, x, y, angle=0, fp="Diode_SMD:D_SOD-323"):
-    return (f'  (symbol (lib_id "Device:D_Schottky") (at {x} {y} {angle}) (unit 1)\n'
-            f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid {uid()})\n'
-            f'    (property "Reference" "{ref}" (at {x} {y-2.54} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Value" "{value}" (at {x} {y+2.54} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Footprint" "{fp}" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide))\n'
-            f'    (property "Datasheet" "~" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide)))')
 
-def opamp_unit(ref, unit_int, x, y, value="TL072"):
-    """Place one unit of a TL072 dual op-amp.
-    unit_int=1 → unit A (pins 3,2,1),  unit_int=2 → unit B (pins 5,6,7)."""
-    return (f'  (symbol (lib_id "Amplifier_Operational:TL072")'
-            f' (at {x} {y} 0) (unit {unit_int})\n'
-            f'    (in_bom yes) (on_board yes) (dnp no)\n'
-            f'    (uuid {uid()})\n'
-            f'    (property "Reference" "{ref}" (at {x+5.08} {y-5.08} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Value" "{value}" (at {x+5.08} {y-6.35} 0)\n'
-            f'      (effects (font (size 1.016 1.016))))\n'
-            f'    (property "Footprint" "Package_SO:SOIC-8_3.9x4.9mm_P1.27mm" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide))\n'
-            f'    (property "Datasheet"'
-            f' "https://www.ti.com/lit/ds/symlink/tl072.pdf" (at 0 0 0)\n'
-            f'      (effects (font (size 1.27 1.27)) hide)))')
+# ── Component placers (return parts list + pin endpoint coords) ────────────────
 
-def text(s, x, y, size=1.27, bold=False):
-    bold_token = " bold" if bold else ""
-    return (f'  (text "{s}" (at {x} {y} 0)\n'
-            f'    (effects (font (size {size} {size}){bold_token})))')
+G = 2.54   # 1 grid unit mm
+
+# Pin offsets (verified from KiCad 7 symbol library files):
+R_P  = 3.81   # Device:R  half-span from centre to pin endpoint (angle=90 → horizontal)
+C_P  = 3.81   # Device:C  half-span to pin endpoint (angle=0  → vertical)
+D_P  = 3.81   # Device:D  half-span to pin endpoint
+OA_IX = 7.62  # TL072 input X offset from centre
+OA_IY = 2.54  # TL072 input Y offset from centre (±)
+OA_OX = 7.62  # TL072 output X offset
+
+def place_R(ref, val, cx, cy, ro=None, fp="Resistor_SMD:R_0402_1005Metric"):
+    """Horizontal resistor (angle=90). Pin2 at cx-R_P, Pin1 at cx+R_P."""
+    parts = [sym_inst("Device:R", cx, cy, 90, 1, ref, val, fp=fp)]
+    return parts, cx - R_P, cx + R_P, cy   # left_x, right_x, y
+
+def place_C(ref, val, cx, cy, fp="Capacitor_SMD:C_0402_1005Metric"):
+    """Vertical capacitor (angle=0). Pin1 top at cy-C_P, Pin2 bottom at cy+C_P."""
+    parts = [sym_inst("Device:C", cx, cy, 0, 1, ref, val, fp=fp)]
+    return parts, cx, cy - C_P, cy + C_P   # x, top_y, bot_y
+
+def place_D(ref, val, cx, cy, angle=270, fp="Diode_SMD:D_SOD-323"):
+    """Diode. angle=270: A at (cx, cy+D_P) [below], K at (cx, cy-D_P) [above]."""
+    parts = [sym_inst("Device:D_Schottky", cx, cy, angle, 1, ref, val, fp=fp)]
+    if angle == 270:
+        return parts, (cx, cy + D_P), (cx, cy - D_P)  # (A_pos, K_pos)
+    elif angle == 90:
+        return parts, (cx, cy - D_P), (cx, cy + D_P)
+    else:
+        return parts, (cx - D_P, cy), (cx + D_P, cy)
+
+def place_OA(ref, unit_int, cx, cy, val="TL072"):
+    """TL072 unit (angle=0).
+    +in at (cx-7.62, cy-2.54), -in at (cx-7.62, cy+2.54), out at (cx+7.62, cy)."""
+    lib_id = "Amplifier_Operational:TL072"
+    parts = [sym_inst(lib_id, cx, cy, 0, unit_int, ref, val,
+                      fp="Package_SO:SOIC-8_3.9x4.9mm_P1.27mm",
+                      datasheet="https://www.ti.com/lit/ds/symlink/tl072.pdf")]
+    plus_pin  = (cx - OA_IX, cy - OA_IY)
+    minus_pin = (cx - OA_IX, cy + OA_IY)
+    out_pin   = (cx + OA_OX, cy)
+    return parts, plus_pin, minus_pin, out_pin
 
 
 # ── Op-amp slot → IC/unit reference ───────────────────────────────────────────
-# 15 op-amp units total (5 ch × 3).  TL072 packs 2 per SOIC-8 → 8 ICs (U1–U8).
-# oa_idx is 1-based and increments across all channels.
 
-def oa_ref(oa_idx):
-    """Return (IC_str, unit_int, full_ref_str) for op-amp slot oa_idx."""
-    ic   = (oa_idx - 1) // 2 + 1
-    unit = 1 if (oa_idx % 2 == 1) else 2
+def oa_ref(oi):
+    """oi is 1-based op-amp slot across all channels."""
+    ic   = (oi - 1) // 2 + 1
+    unit = 1 if (oi % 2 == 1) else 2
     ltr  = 'A' if unit == 1 else 'B'
     return f"U{ic}", unit, f"U{ic}{ltr}"
 
 
 # ── Channel builder ────────────────────────────────────────────────────────────
 #
-# X layout (mm from X0):
-#   x+0   : CHUA input label
-#   x+8   : R_IN (1kΩ)
-#   x+22  : Input clamp diodes D_hi / D_lo
-#   x+38  : TL072-A  (input buffer)           [op-amp slot oi+0]
-#   x+52  : R_DIV_HI (30kΩ) / R_DIV_LO (10kΩ)  divider
-#   x+68  : TL072-B  (divider buffer) ← NEW   [op-amp slot oi+1]
-#   x+88  : R_SK1 (10kΩ)
-#   x+98  : Node A  (C_FB hangs here)
-#   x+108 : R_SK2 (10kΩ)  →  SK +in node (C_SH to GND)
-#   x+120 : TL072-C  (SK active element)       [op-amp slot oi+2]
-#   x+135 : Output clamp diodes D_hi / D_lo
-#   x+148 : ADS label
+# Grid layout (X from X0=10.16, absolute mm):
+#
+#  [0]       [4]     [7]    [12]      [17]    [17+R_P]  [24]     [31]   [31+R_P]
+#  CHUA_X -- R_IN -- clamp -- OA_A -- RDIVH -- DIV -- OA_B -- RSK1 -- Node_A
+#
+#  [37]   [37+R_P]  [44]      [51]     [55]
+#  RSK2 -- SK+in -- OA_C -- out_clamp -- ADS_CHn
+#
+# Y: signal rail at y_rail.  Op-amp centres at y_rail + 2.54 so that
+#    +in pin lands exactly on y_rail.  After each op-amp output, a short
+#    vertical wire restores the signal to y_rail.
 
-def build_channel(ch, y0, ro, oi):
-    """Build one signal-conditioning channel.
+X0 = 4 * G           # 10.16 mm  — left margin
+CH_STRIDE = 24 * G   # 60.96 mm  — vertical spacing
 
-    ch  : channel index 0–4
-    y0  : Y coordinate of the signal rail (mm)
-    ro  : next passive reference designator index
-    oi  : next op-amp slot index (1-based, shared across channels)
+CH_NAMES = ['x', 'y', 'z', 'w', 'v']
 
-    Returns (parts_list, new_ro, new_oi).
+def build_channel(ch, y_rail, ro, oi):
+    """
+    ch      : channel index 0–4
+    y_rail  : Y coordinate of signal rail (mm)
+    ro      : next passive ref index
+    oi      : next op-amp slot index (1-based)
+    Returns (parts, new_ro, new_oi)
     """
     parts = []
-    x = X0
+    name = CH_NAMES[ch]
 
-    CH_NAMES  = ['x', 'y', 'z', 'w', 'v']
-    name      = CH_NAMES[ch]
+    # Absolute X positions
+    xL   = X0 + 0*G   # 10.16 — Chua input label
+    xRIN = X0 + 4*G   # 20.32 — R_IN centre
+    xCL  = X0 + 7*G   # 27.94 — input clamp X
+    xOAA = X0 + 12*G  # 40.64 — TL072-A centre
+    xDH  = X0 + 17*G  # 53.34 — R_DIV_H centre
+    xDIV = xDH + R_P  # 57.15 — divider node
+    xOAB = X0 + 24*G  # 71.12 — TL072-B centre
+    xSK1 = X0 + 31*G  # 88.90 — R_SK1 centre
+    xNA  = xSK1 + R_P # 92.71 — Node-A
+    xSK2 = X0 + 37*G  # 104.14— R_SK2 centre
+    xSKP = xSK2 + R_P # 107.95— SK +input node
+    xOAC = X0 + 44*G  # 121.92— TL072-C centre
+    xOCL = X0 + 51*G  # 139.70— output clamp X
+    xADS = X0 + 55*G  # 149.86— ADS label
+
+    # Op-amp centres are 2.54 below signal rail so +in lands on rail
+    y_oa = y_rail + OA_IY
+
+    # Net label names
     chua_lbl  = f"CHUA_{name.upper()}"
     adc_lbl   = f"ADS_CH{ch}"
-    div_lbl   = f"DIV{ch}"       # voltage divider output node
-    buf2_lbl  = f"B2_CH{ch}"    # divider buffer output (feeds SK filter)
-    ska_lbl   = f"SK_A{ch}"     # node A of SK filter
-    skout_lbl = f"SK_OUT{ch}"   # SK output (before output clamp)
+    buf1_lbl  = f"BUF1_CH{ch}"   # TL072-A output (→ div)
+    div_lbl   = f"DIV_CH{ch}"    # divider node
+    buf2_lbl  = f"BUF2_CH{ch}"   # TL072-B output (→ SK)
+    ska_lbl   = f"SK_A{ch}"      # Node A
+    skout_lbl = f"SK_OUT{ch}"    # TL072-C output / feedback
 
-    # ── channel title ──────────────────────────────────────────────────────────
-    parts.append(text(f"CH{ch}  ({name})  —  3-op-amp topology",
-                      x, y0 - 9, size=1.5, bold=True))
+    # ── Channel title ──────────────────────────────────────────────────────────
+    parts.append(text_note(f"CH{ch} ({name})  —  3-op-amp topology",
+                            xL, y_rail - 10, size=1.5, bold=True))
 
-    # ── Chua input label ───────────────────────────────────────────────────────
-    parts.append(net_label(chua_lbl, x, y0, angle=180))
+    # ── CHUA input label (right-justified, angle=180) ─────────────────────────
+    parts.append(net_label(chua_lbl, xL, y_rail, angle=180))
 
-    # ── R_IN (1kΩ series protection) ──────────────────────────────────────────
-    xr = x + 8
-    parts.append(resistor(f"R{ro}", "1k", xr, y0, angle=90))
-    parts.append(wire(x, y0, xr - 1.524, y0))
+    # ── R_IN 1kΩ ──────────────────────────────────────────────────────────────
+    p, l_x, r_x, _ = place_R(f"R{ro}", "1k", xRIN, y_rail)
+    parts += p
+    parts.append(wire(xL, y_rail, l_x, y_rail))       # label → R_IN left
     ro += 1
 
-    # ── Input clamp diodes D_hi / D_lo to ±9V ─────────────────────────────────
-    x_clamp = x + 22
-    parts.append(wire(xr + 1.524, y0, x_clamp, y0))
+    # ── Input ±9V clamp diodes ─────────────────────────────────────────────────
+    # Wire R_IN right → clamp junction
+    parts.append(wire(r_x, y_rail, xCL, y_rail))
 
-    xd1, yd1 = x_clamp, y0 - 7.62
-    parts.append(diode(f"D{ro}", "BAT54", xd1, yd1, angle=270))
-    parts.append(wire(x_clamp, y0, xd1, yd1 + 1.524))
-    parts.append(power_sym("VCC", "+9V", xd1, yd1 - 4.064,
-                            angle=0, ref_suffix=f"{ro:02d}"))
+    # D1 (signal → +9V): angle=270 → A at cy+D_P, K at cy-D_P
+    #   centre cy such that A-pin = y_rail → cy = y_rail - D_P
+    cy_d1 = y_rail - D_P
+    p, a_pos, k_pos = place_D(f"D{ro}", "BAT54", xCL, cy_d1, angle=270)
+    parts += p
+    # A-pin is at (xCL, y_rail) — on signal rail → junction
+    parts.append(junction(xCL, y_rail))
+    # K-pin → +9V power symbol
+    parts.append(power_sym("VCC", k_pos[0], k_pos[1] - G, angle=0))
+    parts.append(wire(k_pos[0], k_pos[1], k_pos[0], k_pos[1] - G))
     ro += 1
 
-    xd2, yd2 = x_clamp, y0 + 7.62
-    parts.append(diode(f"D{ro}", "BAT54", xd2, yd2, angle=90))
-    parts.append(wire(x_clamp, y0, xd2, yd2 - 1.524))
-    parts.append(power_sym("VEE", "-9V", xd2, yd2 + 4.064,
-                            angle=180, ref_suffix=f"{ro:02d}"))
+    # D2 (-9V → signal): angle=270 → A at cy+D_P, K at cy-D_P
+    #   centre cy such that K-pin = y_rail → cy = y_rail + D_P
+    cy_d2 = y_rail + D_P
+    p, a_pos, k_pos = place_D(f"D{ro}", "BAT54", xCL, cy_d2, angle=270)
+    parts += p
+    # K-pin is at (xCL, y_rail) — on signal rail (shared junction above)
+    # A-pin → -9V power symbol
+    parts.append(power_sym("VEE", a_pos[0], a_pos[1] + G, angle=0))
+    parts.append(wire(a_pos[0], a_pos[1], a_pos[0], a_pos[1] + G))
     ro += 1
 
     # ── TL072-A: unity-gain input buffer ──────────────────────────────────────
-    x_oa = x + 38
     _, unit_a, ref_a = oa_ref(oi);  oi += 1
-    parts.append(opamp_unit(ref_a, unit_a, x_oa, y0))
-    parts.append(wire(x_clamp, y0, x_oa - 7.62, y0))   # clamp → +in
-    x_out_a = x_oa + 7.62
+    p, plus_a, minus_a, out_a = place_OA(ref_a, unit_a, xOAA, y_oa)
+    parts += p
+    # Wire clamp junction → +in  (both at y_rail)
+    parts.append(wire(xCL, y_rail, plus_a[0], plus_a[1]))
+    # Unity gain: −in = out via label
+    parts.append(net_label(buf1_lbl, minus_a[0] - G, minus_a[1], angle=180))
+    parts.append(wire(minus_a[0] - G, minus_a[1], minus_a[0], minus_a[1]))
+    # Short wire from out (y_oa) up to rail (y_rail); label at junction
+    parts.append(wire(out_a[0], out_a[1], out_a[0], y_rail))
+    parts.append(net_label(buf1_lbl, out_a[0], y_rail))
 
-    # ── Voltage divider ÷4  (30kΩ / 10kΩ) ────────────────────────────────────
-    x_div = x + 52
-    parts.append(resistor(f"R{ro}", "30k", x_div, y0, angle=90))
-    parts.append(wire(x_out_a, y0, x_div - 1.524, y0))
+    # ── Voltage divider ÷4  (R_DIV_H 30kΩ / R_DIV_L 10kΩ) ───────────────────
+    p, l_x, r_x, _ = place_R(f"R{ro}", "30k", xDH, y_rail)
+    parts += p
+    parts.append(wire(out_a[0], y_rail, l_x, y_rail))  # buf1 out → RDIVH left
     ro += 1
 
-    x_divnode = x_div + 1.524                   # right pin of R_DIV_HI = junction
-    xrl = x_divnode + 5.08
-    parts.append(resistor(f"R{ro}", "10k", xrl, y0 + 5.08, angle=0))
-    parts.append(wire(x_divnode, y0, xrl - 1.524, y0))
-    parts.append(power_sym("GND", "GND", xrl + 4.064, y0,
-                            angle=270, ref_suffix=f"{ro:02d}"))
+    # RDIVH right pin IS the divider node xDIV
+    # R_DIV_L vertical: top pin at y_rail → centre at y_rail + C_P
+    # Use a resistor at angle=0 (vertical): pins at cy ± R_P
+    # For vertical R: pin1-top at cy-R_P, pin2-bot at cy+R_P
+    # Want top pin at y_rail → cy = y_rail + R_P
+    cy_dl = y_rail + R_P
+    p, l_x2, r_x2, _ = place_R(f"R{ro}", "10k", xDIV, cy_dl, fp="Resistor_SMD:R_0402_1005Metric")
+    # Actually Device:R angle=0 is vertical; pin offsets are ±R_P in Y (not X)
+    # Reuse sym_inst directly with angle=0
+    parts.append(sym_inst("Device:R", xDIV, cy_dl, 0, 1, f"R{ro}", "10k",
+                            fp="Resistor_SMD:R_0402_1005Metric"))
+    # Pin1 top at (xDIV, cy_dl - R_P) = (xDIV, y_rail)
+    # Pin2 bot at (xDIV, cy_dl + R_P) = (xDIV, y_rail + 2*R_P)
+    p_top = (xDIV, cy_dl - R_P)   # = (xDIV, y_rail)
+    p_bot = (xDIV, cy_dl + R_P)   # = (xDIV, y_rail + 7.62)
+    parts.append(junction(xDIV, y_rail))
+    parts.append(wire(r_x, y_rail, xDIV, y_rail))    # RDIVH right → divnode
+    parts.append(power_sym("GND", p_bot[0], p_bot[1] + G, angle=270))
+    parts.append(wire(p_bot[0], p_bot[1], p_bot[0], p_bot[1] + G))
+    parts.append(net_label(div_lbl, xDIV, y_rail))
     ro += 1
-    parts.append(net_label(div_lbl, x_divnode, y0))
 
-    # ── TL072-B: divider unity-gain buffer  ← NEW ─────────────────────────────
-    # Eliminates Rth = 7.5 kΩ source loading on the SK filter.
-    # With this buffer: R1_eff = R_SK1 = 10 kΩ → fn = ideal 4.95 kHz.
-    x_ob_div = x + 68
+    # ── TL072-B: divider buffer (eliminates 7.5kΩ source loading) ─────────────
     _, unit_b, ref_b = oa_ref(oi);  oi += 1
-    parts.append(opamp_unit(ref_b, unit_b, x_ob_div, y0))
-    # Route divider node label → +in of TL072-B
-    parts.append(net_label(div_lbl, x_ob_div - 9.0, y0, angle=180))
-    parts.append(wire(x_ob_div - 9.0, y0, x_ob_div - 7.62, y0))
-    x_out_db = x_ob_div + 7.62
-    parts.append(wire(x_out_db, y0, x_out_db + 2.54, y0))
-    parts.append(net_label(buf2_lbl, x_out_db + 2.54, y0))
+    p, plus_b, minus_b, out_b = place_OA(ref_b, unit_b, xOAB, y_oa)
+    parts += p
+    # +in: wire from divider node (xDIV, y_rail) → (plus_b) at y_rail
+    parts.append(net_label(div_lbl, plus_b[0] - G, plus_b[1], angle=180))
+    parts.append(wire(plus_b[0] - G, plus_b[1], plus_b[0], plus_b[1]))
+    # Unity gain
+    parts.append(net_label(buf2_lbl, minus_b[0] - G, minus_b[1], angle=180))
+    parts.append(wire(minus_b[0] - G, minus_b[1], minus_b[0], minus_b[1]))
+    parts.append(wire(out_b[0], out_b[1], out_b[0], y_rail))
+    parts.append(net_label(buf2_lbl, out_b[0], y_rail))
 
-    # ── Sallen-Key 2nd-order Butterworth LPF (source is TL072-B output = 0Ω) ──
-    #
-    #   buf2_lbl ──[RSK1 10k]── NA ──[RSK2 10k]── NSKPLUS ──(+)TL072-C── NSKOUT
-    #                            |                    |                      |
-    #                          [CFB 2.2n]          [CSH 4.7n]          (−) tied
-    #                            |                    |                 to NSKOUT
-    #                          NSKOUT               GND                (unity gain)
-    #
-    #   fn = 1/(2π·10k·√(2.2n·4.7n)) = 4.95 kHz   Q = √(4.7/2.2)/2 = 0.731 ✓
-
-    x_ska = x + 98           # position of Node A
-
-    # RSK1 (10kΩ): buf2_lbl → NA
-    xrsk1 = x_ska - 10.16
-    parts.append(resistor(f"R{ro}", "10k", xrsk1, y0, angle=90))
-    parts.append(net_label(buf2_lbl, xrsk1 - 3.0, y0, angle=180))
-    parts.append(wire(xrsk1 - 3.0, y0, xrsk1 - 1.524, y0))
-    parts.append(wire(xrsk1 + 1.524, y0, x_ska, y0))
+    # ── Sallen-Key 2nd-order Butterworth LPF ──────────────────────────────────
+    # R_SK1: buf2 → Node-A
+    p, l_sk1, r_sk1, _ = place_R(f"R{ro}", "10k", xSK1, y_rail)
+    parts += p
+    parts.append(net_label(buf2_lbl, l_sk1 - G, y_rail, angle=180))
+    parts.append(wire(l_sk1 - G, y_rail, l_sk1, y_rail))
     ro += 1
 
-    # C_SK_FB (2.2nF): NA → skout_lbl  (feedback cap)
-    xc1, yc1 = x_ska, y0 + 10.16
-    parts.append(capacitor(f"C{ro}", "2.2nF", xc1, yc1, angle=0))
-    parts.append(wire(x_ska, y0, xc1, yc1 - 1.524))
-    parts.append(net_label(skout_lbl, xc1, yc1 + 1.524))
-    parts.append(net_label(ska_lbl, x_ska, y0))
+    # C_FB 2.2nF: Node-A → skout (feedback cap, vertical, hangs below)
+    # Centre at (xNA, y_rail + C_P + G)  → top pin at y_rail + G
+    # Actually place centre so top pin touches Node A at y_rail + 1G below rail:
+    #   We route: xNA, y_rail → short wire down G → C_FB top pin
+    cy_cfb = y_rail + G + C_P     # top pin at y_rail+G
+    parts.append(junction(xNA, y_rail))
+    parts.append(wire(r_sk1, y_rail, xNA, y_rail))      # RSK1 right → Node-A
+    p, cx_cfb, top_cfb, bot_cfb = place_C(f"C{ro}", "2.2nF", xNA, cy_cfb)
+    parts += p
+    parts.append(wire(xNA, y_rail, xNA, top_cfb))        # Node-A → C_FB top
+    parts.append(net_label(skout_lbl, xNA, bot_cfb))
+    parts.append(net_label(ska_lbl, xNA + G, y_rail))
     ro += 1
 
-    # RSK2 (10kΩ): NA → SK +in node
-    x_ob = x + 120           # TL072-C center
-    xrsk2 = x_ob - 17.78
-    parts.append(resistor(f"R{ro}", "10k", xrsk2, y0, angle=90))
-    parts.append(wire(x_ska, y0, xrsk2 - 1.524, y0))
-    x_sk_plus = x_ob - 7.62
-    parts.append(wire(xrsk2 + 1.524, y0, x_sk_plus, y0))
+    # R_SK2: Node-A → SK+input
+    p, l_sk2, r_sk2, _ = place_R(f"R{ro}", "10k", xSK2, y_rail)
+    parts += p
+    parts.append(wire(xNA, y_rail, l_sk2, y_rail))
     ro += 1
 
-    # C_SK_SH (4.7nF): SK +in → GND  (shunt cap)
-    xc2, yc2 = x_sk_plus, y0 + 8.89
-    parts.append(capacitor(f"C{ro}", "4.7nF", xc2, yc2, angle=0))
-    parts.append(wire(x_sk_plus, y0, xc2, yc2 - 1.524))
-    parts.append(power_sym("GND", "GND", xc2, yc2 + 4.064,
-                            angle=270, ref_suffix=f"{ro:02d}"))
+    # C_SH 4.7nF: SK+input → GND (shunt cap, vertical, hangs below)
+    parts.append(junction(xSKP, y_rail))
+    parts.append(wire(r_sk2, y_rail, xSKP, y_rail))
+    cy_csh = y_rail + G + C_P
+    p, cx_csh, top_csh, bot_csh = place_C(f"C{ro}", "4.7nF", xSKP, cy_csh)
+    parts += p
+    parts.append(wire(xSKP, y_rail, xSKP, top_csh))
+    parts.append(power_sym("GND", xSKP, bot_csh + G, angle=270))
+    parts.append(wire(xSKP, bot_csh, xSKP, bot_csh + G))
     ro += 1
 
-    # TL072-C: SK active element (unity-gain buffer)
+    # TL072-C: SK active element
     _, unit_c, ref_c = oa_ref(oi);  oi += 1
-    parts.append(opamp_unit(ref_c, unit_c, x_ob, y0))
-    x_out_b = x_ob + 7.62
-    parts.append(wire(x_out_b, y0, x_out_b + 2.54, y0))
-    parts.append(net_label(skout_lbl, x_out_b + 2.54, y0))
+    p, plus_c, minus_c, out_c = place_OA(ref_c, unit_c, xOAC, y_oa)
+    parts += p
+    parts.append(wire(xSKP, y_rail, plus_c[0], plus_c[1]))
+    # Unity gain: −in and out share skout label
+    parts.append(net_label(skout_lbl, minus_c[0] - G, minus_c[1], angle=180))
+    parts.append(wire(minus_c[0] - G, minus_c[1], minus_c[0], minus_c[1]))
+    parts.append(wire(out_c[0], out_c[1], out_c[0], y_rail))
 
-    # ── Output clamp to ±2.5V (ADS1262 AVDD/AVSS protection) ─────────────────
-    x_oclamp = x + 140
-    parts.append(net_label(skout_lbl, x_oclamp - 5.08, y0, angle=180))
-    parts.append(wire(x_oclamp - 5.08, y0, x_oclamp, y0))
+    # ── Output ±2.5V clamp ─────────────────────────────────────────────────────
+    parts.append(net_label(skout_lbl, out_c[0], y_rail, angle=180))
+    parts.append(wire(out_c[0], y_rail, xOCL, y_rail))
+    parts.append(junction(xOCL, y_rail))
 
-    xd3, yd3 = x_oclamp, y0 - 7.62
-    parts.append(diode(f"D{ro}", "BAT54", xd3, yd3, angle=270))
-    parts.append(wire(x_oclamp, y0, xd3, yd3 + 1.524))
-    parts.append(power_sym("VCC", "+2V5", xd3, yd3 - 4.064,
-                            angle=0, ref_suffix=f"{ro:02d}"))
+    cy_d3 = y_rail - D_P
+    p, a_pos3, k_pos3 = place_D(f"D{ro}", "BAT54", xOCL, cy_d3, angle=270)
+    parts += p
+    parts.append(power_sym("VCC", k_pos3[0], k_pos3[1] - G, angle=0))
+    parts.append(wire(k_pos3[0], k_pos3[1], k_pos3[0], k_pos3[1] - G))
     ro += 1
 
-    xd4, yd4 = x_oclamp, y0 + 7.62
-    parts.append(diode(f"D{ro}", "BAT54", xd4, yd4, angle=90))
-    parts.append(wire(x_oclamp, y0, xd4, yd4 - 1.524))
-    parts.append(power_sym("VEE", "-2V5", xd4, yd4 + 4.064,
-                            angle=180, ref_suffix=f"{ro:02d}"))
+    cy_d4 = y_rail + D_P
+    p, a_pos4, k_pos4 = place_D(f"D{ro}", "BAT54", xOCL, cy_d4, angle=270)
+    parts += p
+    parts.append(power_sym("VEE", a_pos4[0], a_pos4[1] + G, angle=0))
+    parts.append(wire(a_pos4[0], a_pos4[1], a_pos4[0], a_pos4[1] + G))
     ro += 1
 
     # ── ADS1262 output label ───────────────────────────────────────────────────
-    parts.append(wire(x_oclamp, y0, x_oclamp + 7.62, y0))
-    parts.append(net_label(adc_lbl, x_oclamp + 7.62, y0))
+    parts.append(wire(xOCL, y_rail, xADS, y_rail))
+    parts.append(net_label(adc_lbl, xADS, y_rail))
 
+    # Filter empty strings
+    parts = [p for p in parts if p]
     return parts, ro, oi
 
 
-# ── lib_symbols (minimal embedded definitions) ────────────────────────────────
+# ── Assemble schematic ─────────────────────────────────────────────────────────
 
-LIB_SYMBOLS = '''\
-  (lib_symbols
-    (symbol "Device:R"
-      (pin_numbers hide) (pin_names (offset 0))
-      (in_bom yes) (on_board yes)
-      (property "Reference" "R" (at 1.016 0 90) (effects (font (size 1.27 1.27))))
-      (property "Value" "R" (at -1.016 0 90) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "R_0_1"
-        (rectangle (start -1.016 -0.508) (end 1.016 0.508)
-          (stroke (width 0.2032) (type default)) (fill (type none))))
-      (symbol "R_1_1"
-        (pin passive line (at -1.524 0 0) (length 0.508)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
-        (pin passive line (at 1.524 0 180) (length 0.508)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))))
-    (symbol "Device:C"
-      (pin_names (offset 0.254))
-      (in_bom yes) (on_board yes)
-      (property "Reference" "C" (at 1.016 -0.254 0) (effects (font (size 1.27 1.27)) (justify left)))
-      (property "Value" "C" (at 1.016 0.508 0) (effects (font (size 1.27 1.27)) (justify left)))
-      (property "Footprint" "" (at 0.508 -3.81 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "C_0_1"
-        (polyline (pts (xy -2.032 -0.508) (xy 2.032 -0.508))
-          (stroke (width 0.508) (type default)) (fill (type none)))
-        (polyline (pts (xy -2.032 0.508) (xy 2.032 0.508))
-          (stroke (width 0.508) (type default)) (fill (type none))))
-      (symbol "C_1_1"
-        (pin passive line (at 0 1.524 270) (length 1.016)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))
-        (pin passive line (at 0 -1.524 90) (length 1.016)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))))
-    (symbol "Device:D_Schottky"
-      (pin_names (offset 0))
-      (in_bom yes) (on_board yes)
-      (property "Reference" "D" (at 0 2.54 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "D_Schottky" (at 0 -2.54 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "~" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "D_Schottky_0_1"
-        (polyline (pts (xy -1.016 -1.016) (xy -1.016 1.016))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (polyline (pts (xy -1.016 0) (xy 1.016 0))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (polyline (pts (xy 1.016 -1.016) (xy -1.016 0) (xy 1.016 1.016))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (polyline (pts (xy -1.524 -1.016) (xy -1.016 -1.016) (xy -1.016 -0.508))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (polyline (pts (xy -0.508 1.016) (xy -1.016 1.016) (xy -1.016 0.508))
-          (stroke (width 0.254) (type default)) (fill (type none))))
-      (symbol "D_Schottky_1_1"
-        (pin passive line (at -2.54 0 0) (length 1.524)
-          (name "A" (effects (font (size 1.27 1.27)))) (number "A" (effects (font (size 1.27 1.27)))))
-        (pin passive line (at 2.54 0 180) (length 1.524)
-          (name "K" (effects (font (size 1.27 1.27)))) (number "K" (effects (font (size 1.27 1.27)))))))
-    (symbol "Amplifier_Operational:TL072"
-      (pin_names (offset 0))
-      (in_bom yes) (on_board yes)
-      (property "Reference" "U" (at 5.08 5.08 0) (effects (font (size 1.27 1.27))))
-      (property "Value" "TL072" (at 5.08 3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "https://www.ti.com/lit/ds/symlink/tl072.pdf" (at 0 0 0)
-        (effects (font (size 1.27 1.27)) hide))
-      (symbol "TL072_1_1"
-        (polyline (pts (xy -5.08 -5.08) (xy -5.08 5.08) (xy 5.08 0) (xy -5.08 -5.08))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (pin input line (at -7.62 2.54 0) (length 2.54)
-          (name "+" (effects (font (size 1.27 1.27)))) (number "3" (effects (font (size 1.27 1.27)))))
-        (pin input line (at -7.62 -2.54 0) (length 2.54)
-          (name "-" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))
-        (pin output line (at 7.62 0 180) (length 2.54)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27))))))
-      (symbol "TL072_2_1"
-        (polyline (pts (xy -5.08 -5.08) (xy -5.08 5.08) (xy 5.08 0) (xy -5.08 -5.08))
-          (stroke (width 0.254) (type default)) (fill (type none)))
-        (pin input line (at -7.62 2.54 0) (length 2.54)
-          (name "+" (effects (font (size 1.27 1.27)))) (number "5" (effects (font (size 1.27 1.27)))))
-        (pin input line (at -7.62 -2.54 0) (length 2.54)
-          (name "-" (effects (font (size 1.27 1.27)))) (number "6" (effects (font (size 1.27 1.27)))))
-        (pin output line (at 7.62 0 180) (length 2.54)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "7" (effects (font (size 1.27 1.27))))))
-      (symbol "TL072_3_1"
-        (pin power_in line (at 0 7.62 270) (length 2.54)
-          (name "V+" (effects (font (size 1.27 1.27)))) (number "8" (effects (font (size 1.27 1.27)))))
-        (pin power_in line (at 0 -7.62 90) (length 2.54)
-          (name "V-" (effects (font (size 1.27 1.27)))) (number "4" (effects (font (size 1.27 1.27)))))))
-    (symbol "power:GND"
-      (property "Reference" "#PWR" (at 0 -6.35 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Value" "GND" (at 0 -3.81 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "GND_0_1"
-        (polyline (pts (xy 0 0) (xy 0 -1.27))
-          (stroke (width 0) (type default)) (fill (type none)))
-        (polyline (pts (xy -1.27 -1.27) (xy 0 -2.54) (xy 1.27 -1.27))
-          (stroke (width 0) (type default)) (fill (type none))))
-      (symbol "GND_1_1"
-        (pin power_in line (at 0 0 270) (length 0)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))))
-    (symbol "power:VCC"
-      (property "Reference" "#PWR" (at 0 -3.81 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Value" "VCC" (at 0 3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "VCC_0_1"
-        (polyline (pts (xy -1.016 -0.508) (xy 0 1.016) (xy 1.016 -0.508))
-          (stroke (width 0) (type default)) (fill (type none)))
-        (polyline (pts (xy 0 0) (xy 0 -2.54))
-          (stroke (width 0) (type default)) (fill (type none))))
-      (symbol "VCC_1_1"
-        (pin power_in line (at 0 -2.54 90) (length 0)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))))
-    (symbol "power:VEE"
-      (property "Reference" "#PWR" (at 0 3.556 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Value" "VEE" (at 0 -3.556 0) (effects (font (size 1.27 1.27))))
-      (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (property "Datasheet" "" (at 0 0 0) (effects (font (size 1.27 1.27)) hide))
-      (symbol "VEE_0_1"
-        (polyline (pts (xy -1.016 0.508) (xy 0 -1.016) (xy 1.016 0.508))
-          (stroke (width 0) (type default)) (fill (type none)))
-        (polyline (pts (xy 0 0) (xy 0 2.54))
-          (stroke (width 0) (type default)) (fill (type none))))
-      (symbol "VEE_1_1"
-        (pin power_in line (at 0 2.54 270) (length 0)
-          (name "~" (effects (font (size 1.27 1.27)))) (number "1" (effects (font (size 1.27 1.27)))))))
-  )'''
+def build_lib_symbols():
+    """Embed exact copies from KiCad global libraries."""
+    # TL072 extends LM2904 — copy LM2904 graphics under the TL072 name
+    tl072 = _extract(KICAD_SYM["Amplifier_Operational"], "LM2904")
+    tl072 = tl072.replace('(symbol "LM2904"', '(symbol "Amplifier_Operational:TL072"', 1)
+    tl072 = re.sub(r'(\(property "Value" ")[^"]*(")', r'\g<1>TL072\2', tl072, count=1)
+    tl072 = re.sub(r'(\(property "Datasheet" ")[^"]*(")',
+                   r'\g<1>https://www.ti.com/lit/ds/symlink/tl072.pdf\2', tl072, count=1)
+
+    syms = []
+    for lib, name in [("Device","R"), ("Device","C"), ("Device","D_Schottky"),
+                      ("power","GND"), ("power","VCC"), ("power","VEE")]:
+        syms.append(_extract(KICAD_SYM[lib], name))
+    syms.append(tl072)
+
+    body = "\n".join("  " + line if line.strip() else line
+                     for s in syms for line in s.splitlines())
+    return f"  (lib_symbols\n{body}\n  )"
 
 
 TITLE_BLOCK = '''\
   (title_block
-    (title "5D Chaos Monitor — Signal Conditioning Front-End  (Rev 2)")
-    (rev "2.0")
+    (title "5D Chaos Monitor — Signal Conditioning  Rev 3")
+    (rev "3.0")
     (company "ChaosLab")
-    (comment 1 "5 channels: x,y,z (Chua ch0-2)  w,v (extended ch3-4)")
-    (comment 2 "3 op-amps per channel: A=input buf  B=divider buf (eliminates SK loading)  C=SK active")
-    (comment 3 "15 TL072 units total → 8 SOIC-8 ICs (U1-U8); U8B spare. Alt: 4× TL074 (quad).")
-    (comment 4 "fn = 4.95 kHz (ideal, no source loading)  Q = 0.731  Vout max = ±2.0 V for ±8 V Chua")
+    (comment 1 "5 ch: x y z (Chua 0-2)  w v (extended 3-4)")
+    (comment 2 "3 op-amps/ch: A=input buf  B=divider buf  C=SK active")
+    (comment 3 "fn=4.95 kHz  Q=0.731  Vout max=2.0 V for 8 V Chua  8x TL072 SOIC-8")
+    (comment 4 "All coordinates on 2.54 mm grid; pin endpoints on 1.27 mm grid")
   )'''
 
 
 def main():
+    lib_syms = build_lib_symbols()
+
     lines = [
-        f'(kicad_sch',
-        f'  (version 20230121)',
-        f'  (generator "chaos_sch_gen_v2")',
+        "(kicad_sch",
+        "  (version 20230121)",
+        '  (generator "chaos_sch_gen_v3")',
         f'  (uuid {uid()})',
-        f'  (paper "A2")',
+        '  (paper "A2")',
         TITLE_BLOCK,
-        LIB_SYMBOLS,
+        lib_syms,
     ]
 
-    ro = 1    # passive ref designator index
-    oi = 1    # op-amp slot index (1-based, shared across all 5 channels)
+    ro = 1   # passive ref index
+    oi = 1   # op-amp slot index
 
     for ch in range(5):
-        y0 = 30.0 + ch * CH_STRIDE
-        parts, ro, oi = build_channel(ch, y0, ro, oi)
+        y_rail = (12 + ch * 24) * G   # 30.48, 91.44, 152.40, 213.36, 274.32
+        parts, ro, oi = build_channel(ch, y_rail, ro, oi)
         lines.extend(parts)
 
     lines.append(f'  (sheet_instances (path "/" (page "1")))')
-    lines.append(')')
+    lines.append(")")
 
-    out_path = "signal_conditioning.kicad_sch"
-    with open(out_path, "w") as f:
+    out = "signal_conditioning.kicad_sch"
+    with open(out, "w") as f:
         f.write("\n".join(lines))
 
-    print(f"Wrote {out_path}  ({sum(1 for l in lines if l.strip())} non-blank lines)")
-    print(f"Op-amp slots used: {oi - 1}  →  {(oi - 1 + 1) // 2} TL072 ICs  (U1–U{(oi-1+1)//2})")
-    print()
-    print("Open in KiCad 7:  File → Open → signal_conditioning.kicad_sch")
-    print("Accept library re-link when prompted.")
+    n_lines = sum(1 for l in lines if l.strip())
+    print(f"Wrote {out}  ({n_lines} non-blank lines)")
+    print(f"Op-amp slots: {oi-1}  → {(oi)//2} TL072 ICs (U1–U{(oi-1+1)//2})")
     print()
     print("IC assignment:")
     for slot in range(1, oi):
         _, unit, ref = oa_ref(slot)
         ch   = (slot - 1) // 3
-        role = ['input buffer', 'divider buffer (NEW)', 'SK active'][(slot - 1) % 3]
-        print(f"  {ref:5s}  CH{ch} {role}")
-
+        role = ["input buffer", "divider buffer", "SK active"][(slot-1) % 3]
+        print(f"  {ref:5s}  CH{ch}  {role}")
 
 if __name__ == "__main__":
     main()
