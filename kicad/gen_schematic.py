@@ -47,7 +47,7 @@ def wire(x1, y1, x2, y2):
 
 def net_label(name, x, y, angle=0):
     return (f'  (label "{name}" (at {x} {y} {angle})\n'
-            f'    (fields_autoplaced yes)\n'
+            f'    (fields_autoplaced)\n'
             f'    (effects (font (size 1.27 1.27)) (justify left bottom))\n'
             f'    (uuid "{uid()}")\n'
             f'    (property "InterSheetRef" "" (at 0 0 0)\n'
