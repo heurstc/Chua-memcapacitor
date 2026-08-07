@@ -1,0 +1,38 @@
+# Build output
+firmware/build/
+*.uf2
+*.elf
+*.bin
+*.map
+*.hex
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Plots / logs
+*.png
+*.csv
+*.log
+
+# KiCad
+kicad/*-backups/
+*.kicad_prl
+*-cache.lib
+*-rescue.dcm
+*-rescue.lib
+fp-info-cache
+
+# ngspice output
+spice/*.dat
+
+# Editor
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
