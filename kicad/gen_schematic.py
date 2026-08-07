@@ -324,7 +324,7 @@ LIB_SYMBOLS = '''\
   (lib_symbols
     (symbol "Device:R"
       (pin_numbers hide) (pin_names (offset 0))
-      (exclude_from_sim no) (in_bom yes) (on_board yes)
+      (in_bom yes) (on_board yes)
       (property "Reference" "R" (at 1.016 0 90) (effects (font (size 1.27 1.27))))
       (property "Value" "R" (at -1.016 0 90) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
@@ -339,7 +339,7 @@ LIB_SYMBOLS = '''\
           (name "~" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))))
     (symbol "Device:C"
       (pin_names (offset 0.254))
-      (exclude_from_sim no) (in_bom yes) (on_board yes)
+      (in_bom yes) (on_board yes)
       (property "Reference" "C" (at 1.016 -0.254 0) (effects (font (size 1.27 1.27)) (justify left)))
       (property "Value" "C" (at 1.016 0.508 0) (effects (font (size 1.27 1.27)) (justify left)))
       (property "Footprint" "" (at 0.508 -3.81 0) (effects (font (size 1.27 1.27)) (hide yes)))
@@ -356,7 +356,7 @@ LIB_SYMBOLS = '''\
           (name "~" (effects (font (size 1.27 1.27)))) (number "2" (effects (font (size 1.27 1.27)))))))
     (symbol "Device:D_Schottky"
       (pin_names (offset 0))
-      (exclude_from_sim no) (in_bom yes) (on_board yes)
+      (in_bom yes) (on_board yes)
       (property "Reference" "D" (at 0 2.54 0) (effects (font (size 1.27 1.27))))
       (property "Value" "D_Schottky" (at 0 -2.54 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
@@ -379,7 +379,7 @@ LIB_SYMBOLS = '''\
           (name "K" (effects (font (size 1.27 1.27)))) (number "K" (effects (font (size 1.27 1.27)))))))
     (symbol "Amplifier_Operational:TL072"
       (pin_names (offset 0))
-      (exclude_from_sim no) (in_bom yes) (on_board yes)
+      (in_bom yes) (on_board yes)
       (property "Reference" "U" (at 5.08 5.08 0) (effects (font (size 1.27 1.27))))
       (property "Value" "TL072" (at 5.08 3.556 0) (effects (font (size 1.27 1.27))))
       (property "Footprint" "" (at 0 0 0) (effects (font (size 1.27 1.27)) (hide yes)))
