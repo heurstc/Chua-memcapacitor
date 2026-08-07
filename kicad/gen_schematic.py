@@ -412,6 +412,9 @@ def build_lib_symbols():
     # TL072 extends LM2904 — copy LM2904 graphics under the TL072 name
     tl072 = _extract(KICAD_SYM["Amplifier_Operational"], "LM2904")
     tl072 = tl072.replace('(symbol "LM2904"', '(symbol "Amplifier_Operational:TL072"', 1)
+    # Rename all inner sub-unit names to match the new outer name
+    tl072 = re.sub(r'\(symbol "LM2904(_\d+_\d+")',
+                   r'(symbol "Amplifier_Operational:TL072\1', tl072)
     tl072 = re.sub(r'(\(property "Value" ")[^"]*(")', r'\g<1>TL072\2', tl072, count=1)
     tl072 = re.sub(r'(\(property "Datasheet" ")[^"]*(")',
                    r'\g<1>https://www.ti.com/lit/ds/symlink/tl072.pdf\2', tl072, count=1)
