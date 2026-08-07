@@ -119,9 +119,9 @@ def opamp_unit(ref, unit_int, x, y, value="TL072"):
             f'      (effects (font (size 1.27 1.27)) hide)))')
 
 def text(s, x, y, size=1.27, bold=False):
-    b = "yes" if bold else "no"
+    bold_token = " bold" if bold else ""
     return (f'  (text "{s}" (at {x} {y} 0)\n'
-            f'    (effects (font (size {size} {size}) (bold {b}))))')
+            f'    (effects (font (size {size} {size}){bold_token})))')
 
 
 # ── Op-amp slot → IC/unit reference ───────────────────────────────────────────
