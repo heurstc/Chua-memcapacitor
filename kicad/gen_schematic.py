@@ -422,7 +422,10 @@ def build_lib_symbols():
     syms = []
     for lib, name in [("Device","R"), ("Device","C"), ("Device","D_Schottky"),
                       ("power","GND"), ("power","VCC"), ("power","VEE")]:
-        syms.append(_extract(KICAD_SYM[lib], name))
+        s = _extract(KICAD_SYM[lib], name)
+        # Rename outer symbol to "lib:name" to match lib_id used in placements
+        s = s.replace(f'(symbol "{name}"', f'(symbol "{lib}:{name}"', 1)
+        syms.append(s)
     syms.append(tl072)
 
     body = "\n".join("  " + line if line.strip() else line
