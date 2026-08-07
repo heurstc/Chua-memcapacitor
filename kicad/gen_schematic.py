@@ -43,7 +43,8 @@ def uid():
 
 def wire(x1, y1, x2, y2):
     return (f'  (wire (pts (xy {x1} {y1}) (xy {x2} {y2}))\n'
-            f'    (stroke (width 0) (type default)) (uuid "{uid()}"))')
+            f'    (stroke (width 0) (type solid))\n'
+            f'    (uuid "{uid()}"))')
 
 def net_label(name, x, y, angle=0):
     return (f'  (label "{name}" (at {x} {y} {angle})\n'
