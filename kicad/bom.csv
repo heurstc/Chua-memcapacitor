@@ -1,52 +1,60 @@
 Reference,Value,Description,Footprint,Qty,Notes
-R_IN_x/y/z/w/v,1k,Input series protection resistor,R_0402,5,Bourns CR0402-FX-1001ELF or equiv
-D1/D2 (per ch),BAT54,Schottky clamp to ±9V Chua rails,SOD-323,10,Clamped to Chua supply rails
-R_DIV_HI (per ch),30k,Voltage divider top (÷4 atten),R_0402,5,1% tolerance
-R_DIV_LO (per ch),10k,Voltage divider bottom,R_0402,5,1% tolerance
-R_SK1 (per ch),10k,Sallen-Key R1 — from divider BUFFER output to node A,R_0402,5,1% tolerance (source is now 0Ω → fn = 4.95 kHz ideal)
-R_SK2 (per ch),10k,Sallen-Key R2,R_0402,5,1% tolerance
-C_SK_FB (per ch),2.2nF,SK feedback cap (node A → output),C_0402,5,C0G/NP0 dielectric — critical for filter accuracy
-C_SK_SH (per ch),4.7nF,SK shunt cap (+in → GND),C_0402,5,C0G/NP0 dielectric — critical for filter accuracy
-D3/D4 (per ch),BAT54,Output clamp to ADS1262 ±2.5V rails,SOD-323,10,Clamp to ADS1262 AVDD/AVSS
-U1–U8,TL072,Dual low-noise op-amp (3 units/ch × 5 ch = 15 units),SOIC-8,8,"8 ICs (U1–U8); U8B spare — see IC assignment table below"
-C_BYPASS_9V,100nF,±9V supply bypass per TL072 Vcc/Vee pin,C_0402,16,C0G or X5R (2 caps × 8 ICs)
-C_BULK_9V,10uF,Bulk bypass for ±9V rails,C_0805,2,Tantalum or X5R ceramic
-C_BYPASS_2V5,100nF,±2.5V bypass at ADS1262 AVDD/AVSS,C_0402,2,C0G
-
-,,,,
-IC Assignment (3 op-amps per channel — Rev 2 topology):,,,,
-U1A = CH0 input buffer        U1B = CH0 divider buffer (new),,,,
-U2A = CH0 SK active filter    U2B = CH1 input buffer,,,,
-U3A = CH1 divider buffer (new) U3B = CH1 SK active filter,,,,
-U4A = CH2 input buffer        U4B = CH2 divider buffer (new),,,,
-U5A = CH2 SK active filter    U5B = CH3 input buffer,,,,
-U6A = CH3 divider buffer (new) U6B = CH3 SK active filter,,,,
-U7A = CH4 input buffer        U7B = CH4 divider buffer (new),,,,
-U8A = CH4 SK active filter    U8B = SPARE,,,,
-
-,,,,
-Notes:,,,,
-- Rev 2 adds a unity-gain divider buffer (B-unit) between the ÷4 attenuator,,,,
-  and the Sallen-Key filter. This eliminates Rth = 7.5kΩ source loading that,,,,
-  was shifting fn from ideal 4.95 kHz down to 3.74 kHz in Rev 1.,,,,
-- IC count increases from 5 to 8 TL072 SOIC-8 (or 4× TL074 quad SOIC-14).,,,,
-- C0G/NP0 caps mandatory for SK filter; X7R/Y5V will detune cutoff,,,,
-- TL072 can be substituted with TL082 or OPA2134 (lower noise),,,,
-- BAT54 can be substituted with BAT54S (dual in SOT-23) to halve clamp count,,,,
-- All op-amps share ±9V rails (same as Chua circuit supply),,,,
-- ADS1262 AVDD/AVSS (±2.5V) supplied separately from RP2350 board or LDO,,,,
-
-,,,,
-Filter design (per channel — Rev 2  fn = ideal with buffer):,,,,
-Topology: Unity-gain Sallen-Key 2nd-order Butterworth LPF,,,,
-Source impedance of SK input: 0Ω (driven by TL072 divider buffer),,,,
-R_SK1 = R_SK2 = 10kΩ  (R1_eff = R_SK1 = 10kΩ — no source loading),,,,
-C_SK_FB = 2.2nF  (node-A to output),,,,
-C_SK_SH = 4.7nF  (non-inv input to GND),,,,
-Q = sqrt(4.7/2.2)/2 = 0.73 ≈ 0.707 (Butterworth) ✓,,,,
-fn = 1/(2π×10k×sqrt(2.2n×4.7n)) = 4.95 kHz  (restored to ideal) ✓,,,,
-
-,,,,
-Attenuator:,,,,
-R_DIV_HI = 30kΩ  R_DIV_LO = 10kΩ → gain = 10/(30+10) = 0.25,,,,
-Chua peak ±8V → ±2.0V at ADC input (within ADS1262 ±2.5V range),,,,
+,,RESISTORS,,,
+R1/R12/R23/R34/R45,1k,Input series resistor (CH0-4),R_0402_1005Metric,5,1% — Bourns CR0402-FX-1001ELF
+R4/R15/R26/R37/R48,30k,Divider top R_DIV_H (CH0-4),R_0402_1005Metric,5,1%
+R5/R16/R27/R38/R49,10k,Divider bottom R_DIV_L (CH0-4),R_0402_1005Metric,5,1%
+R6/R17/R28/R39/R50,10k,Sallen-Key R_SK1 (CH0-4),R_0402_1005Metric,5,1%
+R8/R19/R30/R41/R52,10k,Sallen-Key R_SK2 (CH0-4),R_0402_1005Metric,5,1%
+,,RESISTOR SUBTOTAL,,,25
+,,,,,
+,,CAPACITORS (signal path),,,
+C7/C18/C29/C40/C51,2.2nF,SK feedback cap C_FB (CH0-4),C_0402_1005Metric,5,C0G/NP0 mandatory — critical for fn accuracy
+C9/C20/C31/C42/C53,4.7nF,SK shunt cap C_SH (CH0-4),C_0402_1005Metric,5,C0G/NP0 mandatory
+,,CAPACITORS (power bypass),,,
+C_BP1-C_BP16,100nF,TL072 supply bypass (Vcc+Vee per IC),C_0402_1005Metric,16,X5R or C0G — 2 per SOIC-8 package
+C_BLK1/C_BLK2,10µF,Bulk bypass ±9V rails,C_0805_2012Metric,2,X5R ceramic or tantalum
+C_BLK3/C_BLK4,10µF,Bulk bypass ±2.5V ADC rails,C_0805_2012Metric,2,X5R ceramic
+,,CAPACITOR SUBTOTAL,,,30
+,,,,,
+,,DIODES,,,
+D2/D13/D24/D35/D46,BAT54,Input clamp to +9V (CH0-4),D_SOD-323,5,Nexperia BAT54W
+D3/D14/D25/D36/D47,BAT54,Input clamp to -9V (CH0-4),D_SOD-323,5,
+D10/D21/D32/D43/D54,BAT54,Output clamp to +2.5V (CH0-4),D_SOD-323,5,
+D11/D22/D33/D44/D55,BAT54,Output clamp to -2.5V (CH0-4),D_SOD-323,5,
+,,DIODE SUBTOTAL,,,20
+,,,,,
+,,ICs,,,
+U1-U8,TL072,Dual op-amp — 3 units/ch × 5 ch = 15 units,SOIC-8_3.9x4.9mm_P1.27mm,8,U8B spare — TL082 or OPA2134 can substitute
+,,IC SUBTOTAL,,,8
+,,,,,
+,,GRAND TOTAL,,,83
+,,,,,
+,,IC UNIT ASSIGNMENT,,,
+Unit,IC,Channel,Function,,
+U1A,U1,CH0,Input buffer (R_IN → ±9V clamp → TL072-A),,
+U1B,U1,CH0,Divider buffer (÷4 attenuator → TL072-B),,
+U2A,U2,CH0,SK active element (Sallen-Key TL072-C),,
+U2B,U2,CH1,Input buffer,,
+U3A,U3,CH1,Divider buffer,,
+U3B,U3,CH1,SK active element,,
+U4A,U4,CH2,Input buffer,,
+U4B,U4,CH2,Divider buffer,,
+U5A,U5,CH2,SK active element,,
+U5B,U5,CH3,Input buffer,,
+U6A,U6,CH3,Divider buffer,,
+U6B,U6,CH3,SK active element,,
+U7A,U7,CH4,Input buffer,,
+U7B,U7,CH4,Divider buffer,,
+U8A,U8,CH4,SK active element,,
+U8B,U8,—,SPARE,,
+,,,,,
+,,FILTER DESIGN (per channel),,,
+Parameter,Value,Formula,,,
+Topology,Unity-gain Sallen-Key 2nd-order Butterworth LPF,,,,
+R_SK1 = R_SK2,10kΩ,Source impedance = 0Ω (driven by TL072-B buffer),,,
+C_FB,2.2nF C0G,Node-A to output,,,
+C_SH,4.7nF C0G,Non-inv input to GND,,,
+Q,0.731,sqrt(C_SH/C_FB)/2 = sqrt(4.7/2.2)/2,,,
+fn,4.95 kHz,1/(2π×10k×sqrt(2.2n×4.7n)),,,
+Attenuation,÷4 (−12 dB),R_DIV_H=30k / R_DIV_L=10k → gain=0.25,,,
+Chua ±8V → ADC,±2.0V,Within ADS1262 ±2.5V input range,,,

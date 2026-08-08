@@ -17,6 +17,7 @@ venv/
 # Plots / logs
 *.png
 *.csv
+!kicad/bom.csv
 *.log
 
 # KiCad
