@@ -98,9 +98,10 @@ def sym_inst(lib_id, x, y, angle, unit, ref, val, fp="", datasheet="", extra_pro
             f'{props}{extra_props}\n'
             f'  )')
 
-def power_sym(name, x, y, angle=0, pwr_ref=None):
+def power_sym(name, x, y, angle=0, mirror="", pwr_ref=None):
     ref = pwr_ref or f"#PWR_{uid()[:4]}"
-    return (f'  (symbol (lib_id "power:{name}") (at {x:.4f} {y:.4f} {angle}) (unit 1)\n'
+    mirror_str = f" (mirror {mirror})" if mirror else ""
+    return (f'  (symbol (lib_id "power:{name}") (at {x:.4f} {y:.4f} {angle}){mirror_str} (unit 1)\n'
             f'    (in_bom yes) (on_board yes) (dnp no)\n'
             f'    (uuid {uid()})\n'
             f'    (property "Reference" "{ref}" (at {x:.2f} {y+2:.2f} 0)\n'
@@ -224,6 +225,8 @@ def build_channel(ch, y_rail, ro, oi):
 
     # Op-amp centres are 2.54 below signal rail so +in lands on rail
     y_oa = y_rail + OA_IY
+    # Feedback wire Y: 7.62 mm below op-amp centre = 2.54 mm below body bottom
+    y_fb = y_oa + OA_OX
 
     # Net label names
     chua_lbl  = f"CHUA_{name.upper()}"
@@ -270,7 +273,7 @@ def build_channel(ch, y_rail, ro, oi):
     parts += p
     # K-pin is at (xCL, y_rail) — on signal rail (shared junction above)
     # A-pin → -9V power symbol
-    parts.append(power_sym("VEE", a_pos[0], a_pos[1] + G, angle=0))
+    parts.append(power_sym("VEE", a_pos[0], a_pos[1] + G, angle=0, mirror="x"))
     parts.append(wire(a_pos[0], a_pos[1], a_pos[0], a_pos[1] + G))
     ro += 1
 
@@ -280,12 +283,14 @@ def build_channel(ch, y_rail, ro, oi):
     parts += p
     # Wire clamp junction → +in  (both at y_rail)
     parts.append(wire(xCL, y_rail, plus_a[0], plus_a[1]))
-    # Unity gain: −in = out via label
-    parts.append(net_label(buf1_lbl, minus_a[0] - G, minus_a[1], angle=180))
-    parts.append(wire(minus_a[0] - G, minus_a[1], minus_a[0], minus_a[1]))
-    # Short wire from out (y_oa) up to rail (y_rail); label at junction
+    # Output: up to signal rail; name the net
     parts.append(wire(out_a[0], out_a[1], out_a[0], y_rail))
     parts.append(net_label(buf1_lbl, out_a[0], y_rail))
+    # Unity-gain feedback: out → down below body → left → up to -in
+    parts.append(junction(out_a[0], out_a[1]))
+    parts.append(wire(out_a[0], out_a[1], out_a[0], y_fb))
+    parts.append(wire(out_a[0], y_fb, minus_a[0], y_fb))
+    parts.append(wire(minus_a[0], y_fb, minus_a[0], minus_a[1]))
 
     # ── Voltage divider ÷4  (R_DIV_H 30kΩ / R_DIV_L 10kΩ) ───────────────────
     p, l_x, r_x, _ = place_R(f"R{ro}", "30k", xDH, y_rail)
@@ -310,7 +315,7 @@ def build_channel(ch, y_rail, ro, oi):
     p_bot = (xDIV, cy_dl + R_P)   # = (xDIV, y_rail + 7.62)
     parts.append(junction(xDIV, y_rail))
     parts.append(wire(r_x, y_rail, xDIV, y_rail))    # RDIVH right → divnode
-    parts.append(power_sym("GND", p_bot[0], p_bot[1] + G, angle=270))
+    parts.append(power_sym("GND", p_bot[0], p_bot[1] + G, angle=0))
     parts.append(wire(p_bot[0], p_bot[1], p_bot[0], p_bot[1] + G))
     parts.append(net_label(div_lbl, xDIV, y_rail))
     ro += 1
@@ -319,21 +324,23 @@ def build_channel(ch, y_rail, ro, oi):
     _, unit_b, ref_b = oa_ref(oi);  oi += 1
     p, plus_b, minus_b, out_b = place_OA(ref_b, unit_b, xOAB, y_oa)
     parts += p
-    # +in: wire from divider node (xDIV, y_rail) → (plus_b) at y_rail
+    # +in: from divider node via net label
     parts.append(net_label(div_lbl, plus_b[0] - G, plus_b[1], angle=180))
     parts.append(wire(plus_b[0] - G, plus_b[1], plus_b[0], plus_b[1]))
-    # Unity gain
-    parts.append(net_label(buf2_lbl, minus_b[0] - G, minus_b[1], angle=180))
-    parts.append(wire(minus_b[0] - G, minus_b[1], minus_b[0], minus_b[1]))
+    # Output: up to signal rail; name the net
     parts.append(wire(out_b[0], out_b[1], out_b[0], y_rail))
     parts.append(net_label(buf2_lbl, out_b[0], y_rail))
+    # Unity-gain feedback: out → down below body → left → up to -in
+    parts.append(junction(out_b[0], out_b[1]))
+    parts.append(wire(out_b[0], out_b[1], out_b[0], y_fb))
+    parts.append(wire(out_b[0], y_fb, minus_b[0], y_fb))
+    parts.append(wire(minus_b[0], y_fb, minus_b[0], minus_b[1]))
 
     # ── Sallen-Key 2nd-order Butterworth LPF ──────────────────────────────────
     # R_SK1: buf2 → Node-A
     p, l_sk1, r_sk1, _ = place_R(f"R{ro}", "10k", xSK1, y_rail)
     parts += p
-    parts.append(net_label(buf2_lbl, l_sk1 - G, y_rail, angle=180))
-    parts.append(wire(l_sk1 - G, y_rail, l_sk1, y_rail))
+    parts.append(wire(out_b[0], y_rail, l_sk1, y_rail))   # OA-B rail → RSK1
     ro += 1
 
     # C_FB 2.2nF: Node-A → skout (feedback cap, vertical, hangs below)
@@ -363,7 +370,7 @@ def build_channel(ch, y_rail, ro, oi):
     p, cx_csh, top_csh, bot_csh = place_C(f"C{ro}", "4.7nF", xSKP, cy_csh)
     parts += p
     parts.append(wire(xSKP, y_rail, xSKP, top_csh))
-    parts.append(power_sym("GND", xSKP, bot_csh + G, angle=270))
+    parts.append(power_sym("GND", xSKP, bot_csh + G, angle=0))
     parts.append(wire(xSKP, bot_csh, xSKP, bot_csh + G))
     ro += 1
 
@@ -372,10 +379,13 @@ def build_channel(ch, y_rail, ro, oi):
     p, plus_c, minus_c, out_c = place_OA(ref_c, unit_c, xOAC, y_oa)
     parts += p
     parts.append(wire(xSKP, y_rail, plus_c[0], plus_c[1]))
-    # Unity gain: −in and out share skout label
-    parts.append(net_label(skout_lbl, minus_c[0] - G, minus_c[1], angle=180))
-    parts.append(wire(minus_c[0] - G, minus_c[1], minus_c[0], minus_c[1]))
+    # Output: up to signal rail
     parts.append(wire(out_c[0], out_c[1], out_c[0], y_rail))
+    # Unity-gain feedback: out → down below body → left → up to -in
+    parts.append(junction(out_c[0], out_c[1]))
+    parts.append(wire(out_c[0], out_c[1], out_c[0], y_fb))
+    parts.append(wire(out_c[0], y_fb, minus_c[0], y_fb))
+    parts.append(wire(minus_c[0], y_fb, minus_c[0], minus_c[1]))
 
     # ── Output ±2.5V clamp ─────────────────────────────────────────────────────
     parts.append(net_label(skout_lbl, out_c[0], y_rail, angle=180))
@@ -392,7 +402,7 @@ def build_channel(ch, y_rail, ro, oi):
     cy_d4 = y_rail + D_P
     p, a_pos4, k_pos4 = place_D(f"D{ro}", "BAT54", xOCL, cy_d4, angle=270)
     parts += p
-    parts.append(power_sym("VEE", a_pos4[0], a_pos4[1] + G, angle=0))
+    parts.append(power_sym("VEE", a_pos4[0], a_pos4[1] + G, angle=0, mirror="x"))
     parts.append(wire(a_pos4[0], a_pos4[1], a_pos4[0], a_pos4[1] + G))
     ro += 1
 
