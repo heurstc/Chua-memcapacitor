@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Signal Conditioning — Bill of Materials</title>
+<style>
+  @page { size: A4; margin: 18mm 15mm 18mm 15mm; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: "DejaVu Sans", Arial, sans-serif; font-size: 9pt; color: #111; }
+
+  .header { border-bottom: 2.5pt solid #1a1a6e; padding-bottom: 6pt; margin-bottom: 10pt; }
+  .header h1 { font-size: 15pt; color: #1a1a6e; letter-spacing: 0.5pt; }
+  .header h2 { font-size: 10pt; font-weight: normal; color: #444; margin-top: 2pt; }
+  .meta { display: flex; gap: 30pt; margin-top: 5pt; font-size: 8pt; color: #555; }
+  .meta span b { color: #222; }
+
+  h3 { font-size: 9.5pt; color: #1a1a6e; margin: 10pt 0 4pt 0; border-left: 3pt solid #1a1a6e; padding-left: 5pt; text-transform: uppercase; letter-spacing: 0.4pt; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 8.5pt; margin-bottom: 6pt; }
+  thead th { background: #1a1a6e; color: #fff; padding: 4pt 5pt; text-align: left; font-size: 8pt; font-weight: bold; }
+  tbody tr:nth-child(even) { background: #f0f2f8; }
+  tbody tr:hover { background: #dce0f0; }
+  td { padding: 3pt 5pt; border-bottom: 0.5pt solid #ddd; vertical-align: top; }
+  td.ref { font-family: "DejaVu Sans Mono", monospace; font-size: 7.5pt; color: #1a1a6e; }
+  td.qty { text-align: center; font-weight: bold; }
+  td.note { font-style: italic; color: #555; font-size: 7.5pt; }
+  .subtotal td { font-weight: bold; background: #d0d5e8 !important; font-size: 8pt; }
+  .total-row td { font-weight: bold; background: #1a1a6e !important; color: #fff; font-size: 9pt; }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12pt; margin-top: 2pt; }
+
+  .ic-table td.unit { font-family: "DejaVu Sans Mono", monospace; font-size: 7.5pt; color: #1a1a6e; }
+  .ic-table .ch { color: #555; font-size: 7.5pt; }
+
+  .filter-box { border: 1pt solid #1a1a6e; padding: 6pt 8pt; font-size: 8pt; margin-top: 2pt; }
+  .filter-box table { margin: 0; font-size: 8pt; }
+  .filter-box thead th { font-size: 7.5pt; }
+
+  .footer { margin-top: 10pt; border-top: 1pt solid #888; padding-top: 4pt; font-size: 7pt; color: #666; display: flex; justify-content: space-between; }
+
+  .warn { background: #fff8e0; border-left: 3pt solid #e6a800; padding: 3pt 6pt; font-size: 7.5pt; margin-bottom: 5pt; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Signal Conditioning — Bill of Materials</h1>
+  <h2>5-Channel Chua Output Conditioning · X7R Memcapacitor Chaos Generator</h2>
+  <div class="meta">
+    <span><b>Schematic:</b> signal_conditioning.kicad_sch</span>
+    <span><b>Revision:</b> Rev 3</span>
+    <span><b>Date:</b> 2026-08-08</span>
+    <span><b>Total components:</b> 83</span>
+  </div>
+</div>
+
+<div class="warn">
+  C0G/NP0 mandatory for all signal-path capacitors (C_FB, C_SH). X7R is reserved for power bypass only. Do not substitute.
+</div>
+
+<h3>Resistors — 25 total</h3>
+<table>
+  <thead><tr><th>Reference</th><th>Value</th><th>Description</th><th>Footprint</th><th style="text-align:center">Qty</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td class="ref">R1 / R12 / R23 / R34 / R45</td><td>1 kΩ</td><td>Input series R_IN (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">1% — Bourns CR0402-FX-1001ELF</td></tr>
+    <tr><td class="ref">R4 / R15 / R26 / R37 / R48</td><td>30 kΩ</td><td>Divider top R_DIV_H (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">1%</td></tr>
+    <tr><td class="ref">R5 / R16 / R27 / R38 / R49</td><td>10 kΩ</td><td>Divider bottom R_DIV_L (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">1%</td></tr>
+    <tr><td class="ref">R6 / R17 / R28 / R39 / R50</td><td>10 kΩ</td><td>Sallen-Key R_SK1 (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">1%</td></tr>
+    <tr><td class="ref">R8 / R19 / R30 / R41 / R52</td><td>10 kΩ</td><td>Sallen-Key R_SK2 (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">1%</td></tr>
+    <tr class="subtotal"><td colspan="4">Resistor subtotal</td><td class="qty">25</td><td></td></tr>
+  </tbody>
+</table>
+
+<h3>Capacitors — 30 total</h3>
+<table>
+  <thead><tr><th>Reference</th><th>Value</th><th>Description</th><th>Footprint</th><th style="text-align:center">Qty</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td class="ref">C7 / C18 / C29 / C40 / C51</td><td>2.2 nF</td><td>SK feedback C_FB (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">C0G/NP0 mandatory</td></tr>
+    <tr><td class="ref">C9 / C20 / C31 / C42 / C53</td><td>4.7 nF</td><td>SK shunt C_SH (CH0–4)</td><td>0402</td><td class="qty">5</td><td class="note">C0G/NP0 mandatory</td></tr>
+    <tr><td class="ref">C_BP1 – C_BP16</td><td>100 nF</td><td>TL072 supply bypass (×2 per IC)</td><td>0402</td><td class="qty">16</td><td class="note">X7R acceptable — place within 1 mm of VCC/VEE pins</td></tr>
+    <tr><td class="ref">C_BLK1 / C_BLK2</td><td>10 µF</td><td>Bulk bypass ±9 V rails</td><td>0805</td><td class="qty">2</td><td class="note">X7R or tantalum</td></tr>
+    <tr><td class="ref">C_BLK3 / C_BLK4</td><td>10 µF</td><td>Bulk bypass ±2.5 V ADC rails</td><td>0805</td><td class="qty">2</td><td class="note">X7R</td></tr>
+    <tr class="subtotal"><td colspan="4">Capacitor subtotal</td><td class="qty">30</td><td></td></tr>
+  </tbody>
+</table>
+
+<h3>Diodes — 20 total</h3>
+<table>
+  <thead><tr><th>Reference</th><th>Value</th><th>Description</th><th>Footprint</th><th style="text-align:center">Qty</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td class="ref">D2 / D13 / D24 / D35 / D46</td><td>BAT54</td><td>Input clamp to +9 V (CH0–4)</td><td>SOD-323</td><td class="qty">5</td><td class="note">Nexperia BAT54W or PMEG2005</td></tr>
+    <tr><td class="ref">D3 / D14 / D25 / D36 / D47</td><td>BAT54</td><td>Input clamp to −9 V (CH0–4)</td><td>SOD-323</td><td class="qty">5</td><td class="note"></td></tr>
+    <tr><td class="ref">D10 / D21 / D32 / D43 / D54</td><td>BAT54</td><td>Output clamp to +2.5 V (CH0–4)</td><td>SOD-323</td><td class="qty">5</td><td class="note">Chua ±8 V → ±2.0 V within ADS1262 range</td></tr>
+    <tr><td class="ref">D11 / D22 / D33 / D44 / D55</td><td>BAT54</td><td>Output clamp to −2.5 V (CH0–4)</td><td>SOD-323</td><td class="qty">5</td><td class="note"></td></tr>
+    <tr class="subtotal"><td colspan="4">Diode subtotal</td><td class="qty">20</td><td></td></tr>
+  </tbody>
+</table>
+
+<h3>Integrated Circuits — 8 total</h3>
+<table>
+  <thead><tr><th>Reference</th><th>Value</th><th>Description</th><th>Footprint</th><th style="text-align:center">Qty</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td class="ref">U1 – U8</td><td>TL072</td><td>Dual JFET op-amp (15 signal units + 1 spare)</td><td>SOIC-8</td><td class="qty">8</td><td class="note">TL082 or OPA2134 pin-compatible. U8B spare.</td></tr>
+    <tr class="subtotal"><td colspan="4">IC subtotal</td><td class="qty">8</td><td></td></tr>
+  </tbody>
+</table>
+
+<table style="margin-top:6pt">
+  <tbody><tr class="total-row"><td colspan="4" style="padding:5pt 5pt"><b>GRAND TOTAL</b></td><td class="qty" style="text-align:center">83</td><td></td></tr></tbody>
+</table>
+
+<div class="two-col" style="margin-top:10pt">
+
+  <div>
+    <h3>IC Unit Assignment</h3>
+    <table class="ic-table">
+      <thead><tr><th>Unit</th><th>IC</th><th>Ch</th><th>Function</th></tr></thead>
+      <tbody>
+        <tr><td class="unit">U1A</td><td>U1</td><td class="ch">CH0</td><td>Input buffer</td></tr>
+        <tr><td class="unit">U1B</td><td>U1</td><td class="ch">CH0</td><td>Divider buffer</td></tr>
+        <tr><td class="unit">U2A</td><td>U2</td><td class="ch">CH0</td><td>Sallen-Key active</td></tr>
+        <tr><td class="unit">U2B</td><td>U2</td><td class="ch">CH1</td><td>Input buffer</td></tr>
+        <tr><td class="unit">U3A</td><td>U3</td><td class="ch">CH1</td><td>Divider buffer</td></tr>
+        <tr><td class="unit">U3B</td><td>U3</td><td class="ch">CH1</td><td>Sallen-Key active</td></tr>
+        <tr><td class="unit">U4A</td><td>U4</td><td class="ch">CH2</td><td>Input buffer</td></tr>
+        <tr><td class="unit">U4B</td><td>U4</td><td class="ch">CH2</td><td>Divider buffer</td></tr>
+        <tr><td class="unit">U5A</td><td>U5</td><td class="ch">CH2</td><td>Sallen-Key active</td></tr>
+        <tr><td class="unit">U5B</td><td>U5</td><td class="ch">CH3</td><td>Input buffer</td></tr>
+        <tr><td class="unit">U6A</td><td>U6</td><td class="ch">CH3</td><td>Divider buffer</td></tr>
+        <tr><td class="unit">U6B</td><td>U6</td><td class="ch">CH3</td><td>Sallen-Key active</td></tr>
+        <tr><td class="unit">U7A</td><td>U7</td><td class="ch">CH4</td><td>Input buffer</td></tr>
+        <tr><td class="unit">U7B</td><td>U7</td><td class="ch">CH4</td><td>Divider buffer</td></tr>
+        <tr><td class="unit">U8A</td><td>U8</td><td class="ch">CH4</td><td>Sallen-Key active</td></tr>
+        <tr><td class="unit">U8B</td><td>U8</td><td class="ch">—</td><td><i>SPARE</i></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div>
+    <h3>Filter Design (per channel)</h3>
+    <div class="filter-box">
+      <table>
+        <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Topology</td><td>Unity-gain Sallen-Key 2nd-order Butterworth LPF</td></tr>
+          <tr><td>R_SK1 = R_SK2</td><td>10 kΩ</td></tr>
+          <tr><td>C_FB (node-A → out)</td><td>2.2 nF C0G</td></tr>
+          <tr><td>C_SH (+in → GND)</td><td>4.7 nF C0G</td></tr>
+          <tr><td>Q factor</td><td>0.731 (Butterworth ≈ 0.707)</td></tr>
+          <tr><td>Corner freq f<sub>n</sub></td><td>4.95 kHz</td></tr>
+          <tr><td>Signal attenuation</td><td>÷4 (−12 dB) via 30k/10k divider</td></tr>
+          <tr><td>Chua ±8 V → ADC</td><td>±2.0 V (within ADS1262 ±2.5 V)</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:5pt; font-size:7.5pt; color:#444">
+        f<sub>n</sub> = 1 / (2π · R · √(C_FB · C_SH))<br>
+        Q = √(C_SH / C_FB) / 2 = √(4.7/2.2) / 2 = 0.731
+      </p>
+    </div>
+  </div>
+
+</div>
+
+<div class="footer">
+  <span>Chua-Memcapacitor / PiNN — signal_conditioning Rev 3 — heurstc2012@gmail.com</span>
+  <span>Generated 2026-08-08</span>
+</div>
+
+</body>
+</html>
